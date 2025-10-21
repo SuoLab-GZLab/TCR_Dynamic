@@ -1,0 +1,322 @@
+
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+
+
+'%ni%'=Negate('%in%')
+
+setwd("~/TCR_Dynamic/Fig/Fig2_Factor/")
+
+mycol <- c("#D62728", "#1F77B4",  "#FF7F0E", "#2CA02C", "#9467BD", "#8C564B", "#E377C2", "#BCBD22", "#17BECF", "#FF9896", "#AEC7E8", "#FFBB78", "#98DF8A",  "#C5B0D5",  "#C49C94",  "#F7B6D2", "#7F7F7F", "#DBDB8D", "#9EDAE5", "#45aab4","#fe7966","#81d0bb","#f9637c","#fbb45c","#038dpost","#FFDE99","#B8C8F5","#8fa2dc","#feaac2","#206491", "gold", "seagreen", "tomato", "#285d7c", "#f1d19e", "#e5807c", "#d7969a", "#eeebd8", "#d97d56", "#eecca9", "#eeeddb", "#494651", "#4b98a9", "#719eb6", "#679bc5", "#d94248", "#ebd66d", "#62985a", "#ecc832", "#e1a34e", "#ac3241", "#f5812d", "#d63833", "#ef5a30")
+
+```
+
+
+```{r}
+
+patient_ratio <- qread("/home/xumeng/TCR_Dynamic/Fig/Fig2_Factor/patient_ratio_1020.qs")
+
+```
+
+```{r}
+
+
+data4po <- patient_ratio[, c("patient","po_TCR_ratio", "T1_TCell", "T1_TCR","T1_TCell_pct",  "T1_TCR_pct", "T1_T2_TCell", "T1_T2_TCR","T1_clonality", "T1_div","depth")] %>% unique()
+
+head(data4po)
+
+library(car)
+
+vif_model <- lm(po_TCR_ratio ~ T1_clonality + T1_TCR + T1_TCR_pct, data = data4po)
+
+vif(vif_model)
+
+covs_all <- c("T1_TCell", "T1_TCR", "T1_div", "depth", "T1_TCell_pct", "T1_TCR_pct", "T1_T2_TCell", "T1_T2_TCR", "T1_clonality")
+
+cor_matrix <- cor(data4po[, covs_all], use = "pairwise.complete.obs", method = "pearson")
+
+
+cor_data <- reshape2::melt(cor_matrix)
+
+head(cor_data)
+
+
+p <- ggplot(data = cor_data, aes(x = Var1, y = Var2, fill = value)) + 
+  geom_tile() +
+geom_text(aes(label = sprintf("%.2f", value)), color = "black", size = 2) +
+scale_fill_gradientn(limit = c(min(cor_data$value), max(cor_data$value)), 
+                       name = "Correlation",
+        colors = c("#82969D", "white", "#CC312D")) +
+ggtitle("") +
+theme_minimal() +
+theme(
+    text = element_text(size = 6,  color = "black"),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 6,  color = "black"),
+    axis.text.y = element_text(size = 6,  color = "black"),
+    #legend.title = element_text(angle = 90, hjust = 0.5),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = .2),
+    # panel.border = element_rect(color = "black", fill = NA, linewidth = 0.2),
+    strip.text.x = element_text(size = 6, colour = "black"),
+    strip.background = element_rect(color = "white", fill = "white"),
+    axis.ticks.x=element_blank(),
+    axis.ticks.y=element_blank(),
+    axis.line = element_line(linewidth = 0.1),  
+    axis.ticks = element_line(linewidth = 0.1), 
+    legend.position = "right",
+    panel.grid=element_blank())+
+        coord_fixed() #+
+
+p
+
+
+
+
+p1 <- data4po %>%
+  ggplot(aes(x = T1_TCR_pct, y = po_TCR_ratio)) +
+  # geom_point(aes(color = Tissue), alpha = 0.7, stroke = NA, shape = 19, size = 2) +
+  geom_point(alpha = 0.7, color = "grey80", stroke = NA, shape = 19, size = 2) +
+  geom_smooth(method = "lm", se = TRUE, fill = "grey90", alpha = 0.3, linewidth = 0.3) +  
+scale_color_manual(values = c("PBMC" = "#a01b2b", "Tumor" = "#e48d24")) +
+  scale_y_continuous(breaks = seq(0,1,0.2)) + 
+  scale_x_continuous(breaks = seq(0,1,0.2)) + 
+  stat_poly_eq(
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 2.2,        
+    label.x = 0.15,   
+    label.y = 0.15   
+  )+
+
+  stat_cor(
+    aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~")),
+    method = "pearson",
+    size = 2.2,
+    label.x = 0.2,
+    label.y = 0.05  
+  ) +
+facet_wrap(~ Tissue, scales = "free_x", ncol = 2)+  
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    # axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_text(size=7, color = "black"),
+    axis.line = element_line(linewidth = 0),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+p1
+
+
+
+data4po$depth_1 <- data4po$depth / max(data4po$depth)
+
+p1 <- data4po %>%
+  ggplot(aes(x = depth_1, y = po_TCR_ratio)) +
+  geom_point(alpha = 0.7, color = "grey80", stroke = NA, shape = 19, size = 2) +
+  geom_smooth(method = "lm", se = TRUE, fill = "grey90", alpha = 0.3, linewidth = 0.3) +  
+# scale_color_locuszoom() +  
+scale_color_manual(values = c("PBMC" = "#a01b2b", "Tumor" = "#e48d24")) +
+  scale_y_continuous(breaks = seq(0,1,0.2)) + 
+  scale_x_continuous(breaks = seq(0,1,0.1)) + 
+  stat_poly_eq(
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 2.2,         
+    label.x = 0.15,   
+    label.y = 0.15   
+  )+
+
+  stat_cor(
+    aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~")),
+    method = "pearson",
+    size = 2.2,
+    label.x = 0.2,
+    label.y = 0.05  
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    # axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_text(size=7, color = "black"),
+    axis.line = element_line(linewidth = 0),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+p1
+
+
+```
+
+
+
+```{r}
+
+data4eg <- patient_ratio[, c("patient","eg_TCR_ratio",  "T2_TCell", "T2_TCell_pct", "T2_TCR", "T2_TCR_pct", "T2_T1_TCell", "T2_T1_TCR", "T2_div", "T2_clonality", "depth")] %>% unique()
+
+
+covs_all <- c("T2_TCell", "T2_TCR", "T2_div", "depth", "T2_TCell_pct", "T2_TCR_pct", "T2_T1_TCell", "T2_T1_TCR", "T2_clonality")
+
+
+cor_matrix <- cor(data4eg[, covs_all], use = "pairwise.complete.obs", method = "pearson")
+
+
+cor_data <- melt(cor_matrix)
+
+head(cor_data)
+
+
+p <- ggplot(data = cor_data, aes(x = Var1, y = Var2, fill = value)) + 
+  geom_tile() +
+geom_text(aes(label = sprintf("%.2f", value)), color = "black", size = 2) +
+scale_fill_gradientn(limit = c(min(cor_data$value), max(cor_data$value)), 
+                       name = "Correlation",
+        colors = c("#82969D", "white", "#CC312D")) +
+ggtitle("") +
+theme_minimal() +
+theme(
+    text = element_text(size = 6,  color = "black"),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 6,  color = "black"),
+    axis.text.y = element_text(size = 6,  color = "black"),
+    #legend.title = element_text(angle = 90, hjust = 0.5),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = .2),
+    # panel.border = element_rect(color = "black", fill = NA, linewidth = 0.2),
+    strip.text.x = element_text(size = 6, colour = "black"),
+    strip.background = element_rect(color = "white", fill = "white"),
+    axis.ticks.x=element_blank(),
+    axis.ticks.y=element_blank(),
+    axis.line = element_line(linewidth = 0.1),  
+    axis.ticks = element_line(linewidth = 0.1), 
+    legend.position = "right",
+    panel.grid=element_blank())+
+        coord_fixed() #+
+
+p
+
+
+
+p1 <- data4eg %>%
+  ggplot(aes(x = T2_TCR_pct, y = eg_TCR_ratio)) +
+  geom_point(alpha = 0.9, color = "grey80", stroke = NA, shape = 19, size = 2) +
+  geom_smooth(method = "lm", se = TRUE, fill = "grey90", alpha = 0.3, linewidth = 0.3) +  
+  scale_y_continuous(breaks = seq(0,1,0.2)) + 
+  scale_x_continuous(breaks = seq(0,1,0.2)) + 
+  stat_poly_eq(
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 2.2,         
+    label.x = 0.15,   
+    label.y = 0.15   
+  )+
+
+  stat_cor(
+    aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~")),
+    method = "pearson",
+    size = 2.2,
+    label.x = 0.4,
+    label.y = 0.05  
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    # axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_text(size=7, color = "black"),
+    axis.line = element_line(linewidth = 0),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+p1
+
+
+
+data4eg$depth_1 <- data4eg$depth / max(data4eg$depth)
+
+p1 <- data4eg %>%
+  ggplot(aes(x = depth_1, y = eg_TCR_ratio)) +
+  geom_point(alpha = 0.9, color = "grey80", stroke = NA, shape = 19, size = 2) +
+  geom_smooth(method = "lm", se = TRUE, fill = "grey90", alpha = 0.3, linewidth = 0.3) +  
+  scale_y_continuous(breaks = seq(0,1,0.2)) + 
+  scale_x_continuous(breaks = seq(0,1,0.1)) + 
+  stat_poly_eq(
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~")),
+    formula = y ~ x,
+    parse = TRUE,
+    size = 2.2,         
+    label.x = 0.15,   
+    label.y = 0.15   
+  )+
+
+  stat_cor(
+    aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~")),
+    method = "pearson",
+    size = 2.2,
+    label.x = 0.2,
+    label.y = 0.05  
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    # axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_text(size=7, color = "black"),
+    axis.line = element_line(linewidth = 0),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+p1
+
+
+```
+
+
+
+
+
+
+
