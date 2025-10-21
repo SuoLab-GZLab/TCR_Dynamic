@@ -1,0 +1,217 @@
+
+
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+library(aplot)
+
+'%ni%'=Negate('%in%')
+
+setwd("~/TCR_Dynamic/Fig/Fig2_test/multi_tissue/sc/")
+
+mycol <- c("#D62728", "#1F77B4",  "#FF7F0E", "#2CA02C", "#9467BD", "#8C564B", "#E377C2", "#BCBD22", "#17BECF", "#FF9896", "#AEC7E8", "#FFBB78", "#98DF8A",  "#C5B0D5",  "#C49C94",  "#F7B6D2", "#7F7F7F", "#DBDB8D", "#9EDAE5", "#45aab4","#fe7966","#81d0bb","#f9637c","#fbb45c","#038dW2","#FFDE99","#B8C8F5","#8fa2dc","#feaac2","#206491", "gold", "seagreen", "tomato", "#285d7c", "#f1d19e", "#e5807c", "#d7969a", "#eeebd8", "#d97d56", "#eecca9", "#eeeddb", "#494651", "#4b98a9", "#719eb6", "#679bc5", "#d94248", "#ebd66d", "#62985a", "#ecc832", "#e1a34e", "#ac3241", "#f5812d", "#d63833", "#ef5a30")
+
+```
+
+
+
+```{r}
+
+patient_ratio <- qread("~/TCR_Dynamic/tissue_comp/new/patient_ratio_new.qs")
+
+
+head(patient_ratio)
+
+table(patient_ratio$tissue)
+
+```
+
+```{r}
+
+data4po <- patient_ratio[, c("patient","po_TCR_ratio", "T1_TCell", "T1_TCR","T1_TCell_pct",  "T1_TCR_pct", "T1_T2_TCell", "T1_T2_TCR","T1_clonality", "T1_div","depth", "tissue")] %>% unique()
+
+adjust_and_plot_perm <- function(data,
+                                 response,
+                                 group,
+                                 adjust_covariates,
+                                 alpha = 0.05,
+                                 permutations = 999) {
+  library(ggplot2)
+  library(dplyr)
+  
+  # ① Test for interaction between group and each covariate
+  sig_covs <- c()
+  nonsig_covs <- c()
+
+  for (cov in adjust_covariates) {
+    form_inter <- as.formula(paste(response, "~", group, "*", cov))
+    m <- lm(form_inter, data = data) 
+    tidy_m <- tidy(m)
+    inter_idx <- grepl(group, tidy_m$term) &
+                 grepl(cov, tidy_m$term) &
+                 grepl(":", tidy_m$term)
+    if (!any(inter_idx)) next
+    p_vals <- tidy_m$p.value[inter_idx]
+    if (any(p_vals < alpha)) {
+      sig_covs <- c(sig_covs, cov)
+    } else {
+      nonsig_covs <- c(nonsig_covs, cov)
+    }
+  }
+  
+  message("Significant interactions (adjusted covariates): ", 
+          ifelse(length(sig_covs) == 0, "none", paste(sig_covs, collapse=", ")))
+  message("Common slopes (adjusted covariates): ", 
+          ifelse(length(nonsig_covs) == 0, "none", paste(nonsig_covs, collapse=", ")))
+  
+  # ② Build final model formula
+  formula_parts <- c(group)
+  if (length(nonsig_covs) > 0) {
+    formula_parts <- c(formula_parts, paste(nonsig_covs, collapse = " + "))
+  }
+  if (length(sig_covs) > 0) {
+    formula_parts <- c(formula_parts, paste0(group, " * (", paste(sig_covs, collapse = " + "), ")"))
+  }
+
+  formula_str <- paste(response, "~", paste(formula_parts, collapse = " + "))
+  form_final <- as.formula(formula_str)
+  
+  # ③ Fit final permutation model
+  final_model <- lm(form_final, data = data)
+  
+  # ④ Calculate adjusted means and differences
+  # (Permutation test doesn't affect emmeans calculation)
+  # emm <- emmeans(final_model, as.formula(paste("~", group)))
+  # contrast <- pairs(emm)
+  
+  # ⑤ Get fitted values (adjusted values) for each sample
+  fitted_vals <- fitted(final_model)
+
+  data_adj <- data %>%
+    mutate(adjusted_value = fitted_vals)
+  
+  # ⑦ Return results
+  return(list(
+    model = final_model,
+    # emm = emm,
+    # contrast = contrast,
+    adjusted_data = data_adj
+    # plot = pplot
+  ))
+}
+
+
+head(data4po)
+
+result <- adjust_and_plot_perm(
+  data = data4po,
+  response = "po_TCR_ratio",
+  group = "tissue",
+  adjust_covariates = c("T1_TCR_pct"),
+  alpha = 0.05
+)
+
+
+
+po4box <- result$adjusted_data
+
+
+```
+
+
+
+```{r}
+
+data4eg <- patient_ratio[, c("patient","eg_TCR_ratio",  "T2_TCell", "T2_TCell_pct", "T2_TCR", "T2_TCR_pct", "T2_T1_TCell", "T2_T1_TCR", "T2_div", "T2_clonality",  "depth", "tissue")] %>% unique()
+
+
+result <- adjust_and_plot_perm(
+  data = data4eg,
+  response = "eg_TCR_ratio",
+  group = "tissue",
+  adjust_covariates = c("T2_TCR_pct"),
+  alpha = 0.05
+)
+
+
+eg4box <- result$adjusted_data
+
+
+```
+
+```{r}
+
+head(po4box)
+
+po4box_1 <- po4box[, c("patient", "adjusted_value")]
+eg4box_1 <- eg4box[, c("patient", "adjusted_value")]
+
+ts4box_1 <- left_join(po4box_1, eg4box_1, by = "patient")
+
+colnames(ts4box_1)[2:3] <- c("po_adj", "eg_adj")
+
+head(ts4box_1)
+
+
+
+ts4box_long <- ts4box_1 %>%
+  gather(key = "status", value = "Ratio", po_adj, eg_adj)
+
+ts4box_long <- ts4box_long %>%
+  mutate(Tissue = str_split(patient, "@", simplify = TRUE)[, 3])
+
+
+head(ts4box_long)
+
+ts4box_long$status <- factor(ts4box_long$status, levels = c("po_adj", "eg_adj"))
+
+ts4box_long$Tissue <- factor(ts4box_long$Tissue, levels = c("LN", "pbmc", "tumor", "nat"))
+
+comp <- combn(c("LN", "pbmc", "tumor", "nat"), 2, simplify = FALSE)
+
+p2 <- ggplot(ts4box_long, aes(x = Tissue, y = as.numeric(Ratio), color = Tissue)) +
+      geom_point(aes(color = Tissue), position = position_jitterdodge(0.85), alpha = 0.7, stroke = NA, shape = 19)+
+  scale_size(range = c(0.2, 3), name = "T2") +
+      stat_summary(fun.y = median, geom = 'crossbar', width = 0.3, size = 0.1, color = 'black') +
+  stat_summary(fun.data = function(x) median_hilow(x, 0.5), geom = 'errorbar', width = 0.2, size = 0.15, color = 'black') +
+      scale_color_manual(values = c("pbmc" = "#a01b2b", "tumor" = "#e48d24", "LN" = "#184e41", "nat" = "#f4cf20")) +
+      # scale_y_continuous(breaks = seq(0, 1.2, 0.2)) +
+      ggtitle("") +
+      labs(
+        x = NULL, y = "TCR Ratio",
+        fill = "Tissue"
+      ) +
+      theme_classic() +
+      facet_wrap(~ status, scales = "free", ncol = 2) +
+      theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 8, color = "black"),
+        axis.title.y = element_text(size = 9),
+        axis.line = element_line(linewidth = 0.2),
+        axis.ticks = element_line(linewidth = 0.2),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.spacing = unit(0.4, "lines"),
+        strip.background = element_rect(fill = "white", color = "white"),
+        strip.text = element_text(size = 7, face = "bold", colour = "black"),
+        legend.position = "bottom",
+        legend.text = element_text(size = 6),
+        legend.title = element_text(size = 7)
+      ) +
+      geom_signif(
+        comparisons = comp, step_increase = 0.1,
+        map_signif_level = F, test = wilcox.test, test.args = list(alternative = "two.side", paired = F),
+        tip_length = 0, color = "black", size = 0.2, textsize = 2
+      )
+
+p2
+
+
+```
+
