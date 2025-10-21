@@ -1,0 +1,239 @@
+
+```{r}
+library(ggpmisc)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+library(aplot)
+
+'%ni%'=Negate('%in%')
+
+setwd("~/TCR_Dynamic/Fig/Fig1bc/")
+
+mycol <- c("#D62728", "#1F77B4",  "#FF7F0E", "#2CA02C", "#9467BD", "#8C564B", "#E377C2", "#BCBD22", "#17BECF", "#FF9896", "#AEC7E8", "#FFBB78", "#98DF8A",  "#C5B0D5",  "#C49C94",  "#F7B6D2", "#7F7F7F", "#DBDB8D", "#9EDAE5", "#45aab4","#fe7966","#81d0bb","#f9637c","#fbb45c","#038dpost","#FFDE99","#B8C8F5","#8fa2dc","#feaac2","#206491", "gold", "seagreen", "tomato", "#285d7c", "#f1d19e", "#e5807c", "#d7969a", "#eeebd8", "#d97d56", "#eecca9", "#eeeddb", "#494651", "#4b98a9", "#719eb6", "#679bc5", "#d94248", "#ebd66d", "#62985a", "#ecc832", "#e1a34e", "#ac3241", "#f5812d", "#d63833", "#ef5a30")
+
+```
+
+
+```{r}
+
+data_all <- qread("/home/xumeng/TCR_Dynamic/Fig/Fig1bc/data_all_new_1020.qs")
+
+
+datasets_TCR <- data_all[, c("sampleid", "TCR_count", "Tcell_count","datasets", "seqtype", "Tissue")]
+
+
+datasets_TCR
+
+
+datasets_TCR_sc <- subset(datasets_TCR, seqtype == "scTCR")
+datasets_TCR_bulk <- subset(datasets_TCR, seqtype == "bulkTCR") %>% as.data.frame()
+
+
+datasets_TCR_sum_sc <- datasets_TCR_sc %>%
+  group_by(datasets, Tissue) %>%
+  # group_by(datasets) %>%
+  summarise(total_TCR_count = sum(TCR_count, na.rm = TRUE))
+
+head(datasets_TCR_sum_sc)
+
+datasets_TCR_sum_bulk <- datasets_TCR_bulk %>%
+  group_by(datasets, Tissue) %>%
+  # group_by(datasets) %>%
+  summarise(total_TCR_count = sum(TCR_count, na.rm = TRUE))
+
+
+# datasets_TCR_sum_sc <- datasets_TCR_sc %>%
+#   # group_by(datasets, Tissue) %>%
+#   group_by(datasets) %>%
+#   summarise(total_Tcell_count = sum(Tcell_count, na.rm = TRUE))
+
+
+# datasets_TCR_sum_bulk <- datasets_TCR_bulk %>%
+#   # group_by(datasets, Tissue) %>%
+#   group_by(datasets) %>%
+#   summarise(total_Tcell_count = sum(Tcell_count, na.rm = TRUE))
+
+
+p3 <- ggplot(data = datasets_TCR_sum_sc, aes(y = datasets, x = total_TCR_count, fill = Tissue)) +
+  geom_bar(stat = "identity", position = "stack") +  
+  scale_fill_manual( values = c("Tumor" = "#e48d24", "PBMC" = "#a01b2b", "Normal" = "#f4cf20", "LN" = "#184e41")) +
+  ggtitle("scTCR") +
+  labs(
+    x = "Value", 
+    y = "Models", 
+    fill = "Part" 
+  ) +
+  theme_bw() +
+  theme(
+          plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+    axis.text.x = element_text(size = 7, color = "black"),
+    axis.text.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    legend.position = "bottom", 
+    axis.line.y = element_line(color = "black", linewidth = 0), 
+    axis.line.x = element_blank(),  
+    # axis.ticks = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.2),  
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank() ,
+            legend.text = element_text(size=5),
+    legend.title = element_text(size=6),
+    legend.key.size = unit(8, "pt")  
+  )
+
+p3
+
+head(datasets_TCR_sum_bulk)
+
+
+p4 <- ggplot(data = datasets_TCR_sum_bulk, aes(y = datasets, x = total_TCR_count, fill = Tissue)) +
+  geom_bar(stat = "identity", position = "stack") +  
+  scale_fill_manual( values = c("Tumor" = "#e48d24", "PBMC" = "#a01b2b", "Normal" = "#f4cf20", "LN" = "#184e41")) +
+  ggtitle("bulkTCR") + 
+  labs(
+    x = "Value", 
+    y = "Models", 
+    fill = "Part"  
+  ) +
+  theme_bw() +
+  theme(
+          plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+    axis.text.x = element_text(size = 7, color = "black"),
+    axis.text.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    legend.position = "none",  
+    axis.line.y = element_line(color = "black", linewidth = 0),  
+    axis.line.x = element_blank(),  
+    # axis.ticks = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.2), 
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),   
+    legend.text = element_text(size=5),
+    legend.title = element_text(size=6),
+    legend.key.size = unit(8, "pt")
+  ) +
+    guides(color = guide_legend(byrow = TRUE, ncol = 4)) 
+
+
+p4
+
+p <- p3 / p4 + plot_layout(heights = c(6, 5))
+
+p
+
+ggsave("datasets_TCR_new_3.pdf", p, width = 2.5, height = 4.5)
+
+
+
+```
+
+
+```{r}
+
+# datasets_TCell <- data_all[, c("sampleid", "Tcell_count", "datasets", "seqtype", "Tissue")]
+
+# datasets_TCell_sc <- subset(datasets_TCell, seqtype == "scTCR")
+# datasets_TCell_bulk <- subset(datasets_TCell, seqtype == "bulkTCR") %>% as.data.frame()
+# datasets_TCell_bulk
+
+# head(datasets_TCR_sc)
+
+# datasets_TCell_sum_sc <- datasets_TCell_sc %>%
+#   group_by(datasets, Tissue) %>%
+#   summarise(total_TCell_count = sum(Tcell_count, na.rm = TRUE))
+
+# head(datasets_TCell_sum_sc)
+
+# datasets_TCell_sum_bulk <- datasets_TCell_bulk %>%
+#   group_by(datasets, Tissue) %>%
+#   summarise(total_TCell_count = sum(Tcell_count, na.rm = TRUE))
+
+# table(data_all$datasets, data_all$seqtype)
+# table(datasets_TCR_bulk$datasets)
+
+
+# datasets_TCR_sum
+
+# p3 <- ggplot(data = datasets_TCell_sum_sc, aes(y = datasets, x = total_TCell_count, fill = Tissue)) +
+#   geom_bar(stat = "identity", position = "stack") +  
+#   scale_fill_manual( values = c("Tumor" = "#D9BDD8", "PBMC" = "#E58579", "Normal" = "#8AB1D2", "LN" = "#F4CEB4")) +
+#   ggtitle("scTCR") +
+#   labs(
+#     x = "Value", 
+#     y = "Models", 
+#     fill = "Part"  
+#   ) +
+#   theme_bw() +
+#   theme(
+#           plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+#     axis.text.x = element_text(size = 7, color = "black"),
+#     axis.text.y = element_text(size = 7, color = "black"),
+#     axis.title.x = element_blank(),
+#     axis.title.y = element_blank(),
+#     legend.position = "bottom",  
+#     axis.line.y = element_line(color = "black", linewidth = 0),  
+#     axis.line.x = element_blank(),  
+#     axis.ticks = element_blank(),
+#     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.2),  
+#     panel.grid.major = element_blank(),  
+#     panel.grid.minor = element_blank() ,
+#             legend.text = element_text(size=5),
+#     legend.title = element_text(size=6),
+#     legend.key.size = unit(8, "pt")  
+#   ) +
+#    scale_x_continuous(labels = scales::scientific) 
+
+
+# p3
+
+# library(scales)  
+
+# p4 <- ggplot(data = datasets_TCell_sum_bulk, aes(y = datasets, x = as.numeric(total_TCell_count), fill = Tissue)) +
+#   geom_bar(stat = "identity", position = "stack") +  
+#   scale_fill_manual( values = c("Tumor" = "#D9BDD8", "PBMC" = "#E58579", "Normal" = "#8AB1D2", "LN" = "#F4CEB4")) +
+#   ggtitle("bulkTCR") + 
+#   labs(
+#     x = "Value", 
+#     y = "Models", 
+#     fill = "Part"  
+#   ) +
+#   theme_bw() +
+#   theme(
+#           plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+#     axis.text.x = element_text(size = 7, color = "black"),
+#     axis.text.y = element_text(size = 7, color = "black"),
+#     axis.title.x = element_blank(),
+#     axis.title.y = element_blank(),
+#     legend.position = "none",  
+#     axis.line.y = element_line(color = "black", linewidth = 0), 
+#     axis.line.x = element_blank(),  
+#     axis.ticks = element_blank(),
+#     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.2),  
+#     panel.grid.major = element_blank(),  
+#     panel.grid.minor = element_blank(),   
+#     legend.text = element_text(size=5),
+#     legend.title = element_text(size=6),
+#     legend.key.size = unit(8, "pt")
+#   ) +
+#    scale_x_continuous(labels = scales::scientific) +  
+#     guides(color = guide_legend(byrow = TRUE, ncol = 4)) 
+
+
+# p <- p3 / p4 + plot_layout(heights = c(6, 7))
+
+# p
+
+# ggsave("datasets_TCell.pdf", p, width = 2.5, height = 4)
+
+```
+
+
+
+
