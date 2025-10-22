@@ -1,6 +1,6 @@
 
 ```{r}
-setwd("/home/xumeng/TCR_Dynamic/Fig/Fig2_simu1")
+setwd("~/TCR_Dynamic/Fig/Fig2_simu1")
 
 library(ggpmisc)
 library(tidyr)
