@@ -15,14 +15,14 @@ library(aplot)
 library(forestmodel)
 library(survival)
 
-setwd("/home/xumeng/TCR_Dynamic/Fig/Fig2_Factor")
+setwd("~/TCR_Dynamic/Fig/Fig2_Factor")
 
 ```
 
 
 ```{r}
 
-patient_ratio <- qread("/home/xumeng/TCR_Dynamic/Fig/Fig2_Factor/patient_ratio_1020.qs")
+patient_ratio <- qread("~/TCR_Dynamic/Fig/Fig2_Factor/patient_ratio_1020.qs")
 
 ```
 
@@ -148,7 +148,7 @@ forest.panels <- list(
     width = 0.35, item = "forest", hjust = 0.5,
     heading = "Effect size (β ± 95% CI)",
     linetype = "dashed", line_x = 0,
-    point_size = 1.5  # 缩小点的大小（默认约 4）
+    point_size = 1.5  
   ),
   list(width = 0.02, item = "vline", hjust = 0.5),
   list(width = 0.18,
