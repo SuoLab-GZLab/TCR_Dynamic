@@ -10,7 +10,7 @@ library(qs)
 
 '%ni%'=Negate('%in%')
 
-setwd("/home/xumeng/TCR_Dynamic/Fig/Fig2_simu1/")
+setwd("~/TCR_Dynamic/Fig/Fig2_simu1/")
 
 mycol <- c("#D62728", "#1F77B4",  "#FF7F0E", "#2CA02C", "#9467BD", "#8C564B", "#E377C2", "#BCBD22", "#17BECF", "#FF9896", "#AEC7E8", "#FFBB78", "#98DF8A",  "#C5B0D5",  "#C49C94",  "#F7B6D2", "#7F7F7F", "#DBDB8D", "#9EDAE5", "#45aab4","#fe7966","#81d0bb","#f9637c","#fbb45c","#038db2","#FFDE99","#B8C8F5","#8fa2dc","#feaac2","#206491", "gold", "seagreen", "tomato", "#285d7c", "#f1d19e", "#e5807c", "#d7969a", "#eeebd8", "#d97d56", "#eecca9", "#eeeddb", "#494651", "#4b98a9", "#719eb6", "#679bc5", "#d94248", "#ebd66d", "#62985a", "#ecc832", "#e1a34e", "#ac3241", "#f5812d", "#d63833", "#ef5a30")
 
@@ -20,7 +20,7 @@ mycol <- c("#D62728", "#1F77B4",  "#FF7F0E", "#2CA02C", "#9467BD", "#8C564B", "#
 ```{r}
 
 
-all_bulk <- qread("/home/xumeng/TCR_Dynamic/Fig/Fig2_simu1/all_bulk_1018.qs")
+all_bulk <- qread("~/TCR_Dynamic/Fig/Fig2_simu1/all_bulk_1018.qs")
 
 
 head(all_bulk)
