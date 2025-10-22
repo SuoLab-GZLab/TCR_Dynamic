@@ -18,7 +18,7 @@ library(qs)
 
 '%ni%'=Negate('%in%')
 
-setwd("/home/xumeng/TCR_Dynamic/Fig/Fig2_p1/")
+setwd("~/TCR_Dynamic/Fig/Fig2_p1/")
 
 ```
 
@@ -26,11 +26,11 @@ setwd("/home/xumeng/TCR_Dynamic/Fig/Fig2_p1/")
 
 ```{r}
 
-HCD_pbmc <- qread("/home/xumeng/TCR_Dynamic/randomicity/Health_new/PBMC_analysis/health_pbmc_bulk_all.qs")
+HCD_pbmc <- qread("~/TCR_Dynamic/randomicity/Health_new/PBMC_analysis/health_pbmc_bulk_all.qs")
 
-HCL_pbmc <- qread("/home/xumeng/TCR_Dynamic/randomicity/healthy_donor_files/pbmc_bulk_all.qs")
+HCL_pbmc <- qread("~/TCR_Dynamic/randomicity/healthy_donor_files/pbmc_bulk_all.qs")
 
-SARS2_pbmc_2 <- qread("/home/xumeng/TCR_Dynamic/randomicity/SARS2_ID_2024/select/Across6/SARS2_2024_across6_bulk_all.qs")
+SARS2_pbmc_2 <- qread("~/TCR_Dynamic/randomicity/SARS2_ID_2024/select/Across6/SARS2_2024_across6_bulk_all.qs")
 
 ```
 
@@ -223,7 +223,5 @@ p <- ggplot(eg_all, aes(x = time, y = eg_ratio, group = patient, color = dataset
   ) 
 
 p
-
-ggsave("emergent_TCR_Ratio_across_time.pdf", p, width = 2.5, height = 2.5)
 
 ```
