@@ -22,7 +22,7 @@ setwd("~/TCR_Dynamic/Fig/Fig2_p3/")
 
 ```{r}
 
-bulk <- qread("/home/xumeng/TCR_Dynamic/randomicity/Health_new/PBMC_analysis/health_pbmc_bulk_all.qs")
+bulk <- qread("~/TCR_Dynamic/randomicity/Health_new/PBMC_analysis/health_pbmc_bulk_all.qs")
 
 head(bulk)
 
@@ -225,7 +225,7 @@ p3
 
 ```{r}
 
-bulk <- qread("/home/xumeng/TCR_Dynamic/randomicity/SARS2_ID_2024/select/Across6/SARS2_2024_across6_bulk_all.qs")
+bulk <- qread("~/TCR_Dynamic/randomicity/SARS2_ID_2024/select/Across6/SARS2_2024_across6_bulk_all.qs")
 
 head(bulk)
 
@@ -417,3 +417,4 @@ p3
 
 
 ```
+
