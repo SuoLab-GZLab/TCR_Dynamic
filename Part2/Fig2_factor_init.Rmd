@@ -21,7 +21,7 @@ mycol <- c("#D62728", "#1F77B4",  "#FF7F0E", "#2CA02C", "#9467BD", "#8C564B", "#
 
 ```{r}
 
-patient_ratio <- qread("/home/xumeng/TCR_Dynamic/Fig/Fig2_Factor/patient_ratio_1020.qs")
+patient_ratio <- qread("~/TCR_Dynamic/Fig/Fig2_Factor/patient_ratio_1020.qs")
 
 ```
 
