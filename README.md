@@ -9,9 +9,13 @@ This study establishes a multidimensional quantitative evaluation framework to s
 The code is organized by corresponding main figures in the manuscript. Each directory contains standalone scripts to reproduce the data processing and visualization steps.
 
 * **`Fig2_Turnover_Dominance/`**: Scripts for phenotypic clustering, compositional shifts of T cell subsets post-intervention, and temporal dynamics of TCR diversity and clonality.
+* 
 * **`Fig3_Intrinsic_Topology/`**: Pipelines comparing time-specific and time-across TCRs across untreated samples, multi-timepoint cohorts, and cross-platform (bulk vs. scTCR-seq) modalities.
+* 
 * **`Fig4_Mathematical_Modeling/`**: Code for evaluating sample-specific artifacts in biological replicates and validating mathematical distributions using *in silico* simulated repertoires.
+* 
 * **`Fig5_Expansion_Confounders/`**: Benchmarking scripts for the six evaluated statistical models (NB, BB, P, NP, Binomial, Fisher) utilizing clinical single-cell datasets, PBMC, and tumor replicate cohorts.
+* 
 * **`Fig6_Spatial_Phenotypic_Bias/`**: Scripts mapping dynamic TCR shifts to distinct T cell subsets to quantify phenotypic biases, and algorithms processing Slide-TCR data to evaluate localized intra-tumor spatial heterogeneity.
 
 ## Software Requirements
