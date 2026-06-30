@@ -1,0 +1,273 @@
+
+```{r}
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig1")
+
+library(ComplexHeatmap)
+library(dplyr)
+library(tidyr)
+library(patchwork)
+library(ggplot2)
+library(aplot)
+library(qs)
+
+```
+
+
+```{r}
+
+data_all <- qread("/home/xumeng/TCR_Dynamic/code4fithub/Fig1/data_all_0616.qs")
+
+head(data_all)
+
+df_sum <- data_all %>%
+  group_by(tissue, seqtype, datasets1) %>%
+  summarise(
+    total_n_cdr3b = sum(n_cdr3b),
+    .groups = "drop"
+  ) %>% as.data.frame()
+
+df_sum
+
+head(df_sum)
+
+df_sum$datasets1 <- factor(df_sum$datasets1, levels = unique(df$datasets))
+
+df_sum$seqtype <- factor(df_sum$seqtype, levels = rev(c("Slide-TCR", "scTCR", "Bulk")))
+
+p <- ggplot(df_sum,
+            aes(x = datasets1, y = total_n_cdr3b, color = tissue)) +
+  geom_point(size = 3,
+        stroke = NA, shape = 19
+      ) +
+  scale_y_log10() +
+  facet_wrap(~ seqtype, scales = "fixed", ncol = 1) +
+  scale_color_manual(values = c(
+    "Tumor" = "#2e43ab",
+    "PBMC" = "#cf4a3f",
+    "Normal" = "#f4cf20",
+    "LN" = "#184e41"
+  )) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    # axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    # axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    axis.ticks.x = element_blank(),
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p
+
+```
+
+
+```{r}
+
+df <- read.csv("/home/xumeng/TCR_Dynamic/Fig/Fig1bc/datasets.csv", stringsAsFactors = FALSE)
+
+
+head(df[, c("datasets", "sample_all")])
+
+sample_count <- df[, c("datasets", "sample_all")]
+
+sample_count$datasets <- factor(sample_count$datasets, levels = unique(df$datasets))
+
+
+p_sample <- ggplot(sample_count, aes(x = datasets, y = sample_all)) +
+  geom_col(width = 0.86, fill = "#72888e") +
+  labs(
+    x = "",
+    y = "sample"
+  ) +
+  scale_y_continuous(trans = "log2") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size=7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right"
+  )
+
+p_sample
+
+
+
+```
+
+
+```{r}
+
+
+tissues <- c("Tumor", "PBMC", "LN", "Normal")
+
+df[tissues] <- lapply(df[tissues], function(x) {
+  ifelse(is.na(x) | x == "", 0, as.numeric(x))
+})
+
+# 保持原始顺序
+df$datasets <- factor(df$datasets, levels = df$datasets)
+df$Type <- factor(df$Type, levels = c("Cancer","Health","Infection", "SBRT", "Lung_Trans","SCIDX1","TLGLL"))
+
+unique(df$SeqTCR)
+unique(df$Type)
+
+df$SeqTCR <- factor(df$SeqTCR, levels = c("scTCR", "Bulk", "scTCR+Bulk", "Slide-TCR"))
+
+head(df)
+
+unique(df$time.across.type)
+
+df$time.across.type <- factor(df$time.across.type, levels = c("across","rep","across+rep"))
+
+
+main_long <- df %>%
+  select(datasets, all_of(tissues)) %>%
+  pivot_longer(cols = all_of(tissues), names_to = "Tissue", values_to = "value") %>%
+  mutate(
+    Tissue = factor(Tissue, levels = rev(tissues)),  # 让 Tumor 在最上面可改这里
+    value = factor(value, levels = c(0,1))
+  )
+
+anno_long <- df %>%
+  select(datasets, Type, SeqTCR, time.across.type) %>%
+  pivot_longer(cols = c(Type, SeqTCR, time.across.type),
+               names_to = "Anno", values_to = "AnnoValue") %>%
+  mutate(
+    Anno = recode(Anno,
+                  "Type" = "Type",
+                  "SeqTCR" = "SeqTCR",
+                  "time.across.type" = "Time Design"),
+    # 控制注释条从上到下顺序
+    Anno = factor(Anno, levels = c("Type", "SeqTCR", "Time Design"))
+  )
+
+
+y_levels <- c(levels(main_long$Tissue), "Type", "SeqTCR", "Time Design")
+
+main_long <- main_long %>% mutate(y = factor(as.character(Tissue), levels = y_levels))
+anno_long <- anno_long %>% mutate(y = factor(as.character(Anno), levels = y_levels))
+
+
+
+main_long <- df %>%
+  select(datasets, all_of(tissues)) %>%
+  pivot_longer(all_of(tissues), names_to = "Tissue", values_to = "value") %>%
+  mutate(
+    datasets = factor(datasets, levels = df$datasets),
+    y = factor(Tissue, levels = c("Normal","LN","PBMC","Tumor","Type","SeqTCR","Time Design")),
+    fill_key = ifelse(value == 1, "Present", "Absent")
+  )
+
+# 2) 注释长表
+anno_long <- df %>%
+  transmute(
+    datasets,
+    Type, SeqTCR, `Time Design` = time.across.type
+  ) %>%
+  pivot_longer(cols = c(Type, SeqTCR, `Time Design`),
+               names_to = "anno", values_to = "val") %>%
+  mutate(
+    datasets = factor(datasets, levels = df$datasets),
+    y = factor(anno, levels = c("Time Design","SeqTCR","Type","Tumor","PBMC","LN","Normal")),
+    fill_key = as.character(val)
+  )
+
+
+plot_df <- bind_rows(
+  main_long %>% select(datasets, y, fill_key),
+  anno_long %>% select(datasets, y, fill_key)
+)
+
+
+unique(plot_df$fill_key)
+
+
+fill_order <- c(
+  "Absent", "Present",
+  "Cancer","Health", "SBRT","Infection","Lung_Trans","SCIDX1","TLGLL",
+  "scTCR","Bulk","scTCR+Bulk","Slide-TCR",
+  "across","rep","across+rep"
+)
+
+
+all_cols <- c(
+  "Absent"="#F5F5F5","Present"="#2C7BB6",
+  "Cancer"="#11174e","Health"="#789bea","Infection"="#79b9e8","Lung_Trans"="#93d9e5", "SBRT" = "#2f41a8", "SCIDX1"="#b3e2d4", "TLGLL"="#c0ccc4",
+  "scTCR"="#c5a98e","Bulk"="#7b653f","scTCR+Bulk"="#c6d1a7","Slide-TCR"="#e2d599",
+  "across"="#b63120","rep"="#ca8e2e","across+rep"="#e8d174"
+)
+
+plot_df
+
+plot_df$fill_key <- factor(plot_df$fill_key, levels = fill_order)
+
+p_anno <- ggplot(plot_df, aes(datasets, y, fill = fill_key)) +
+  geom_tile(color = "white", linewidth = 0.2) +
+  scale_fill_manual(
+    values = all_cols,
+    breaks = fill_order,
+    drop = FALSE,
+    name = NULL
+  ) +
+
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right",
+    legend.key.height = unit(4, "mm")
+  ) +
+  guides(fill = guide_legend(ncol = 1, byrow = TRUE)) 
+
+p_anno
+
+
+```
+
+
+
+
+```{r}
+
+
+x_levels <- levels(plot_df$datasets)
+
+p       <- p       + scale_x_discrete(limits = x_levels) + theme(plot.margin = margin(2,2,2,2))
+p_sample<- p_sample+ scale_x_discrete(limits = x_levels) + theme(plot.margin = margin(2,2,2,2))
+p_anno  <- p_anno  + scale_x_discrete(limits = x_levels) + theme(plot.margin = margin(2,2,2,2))
+
+
+p       <- p + theme(legend.position = "none")
+p_sample<- p_sample + theme(legend.position = "none")
+p_anno  <- p_anno + theme(legend.position = "none")
+
+p_all <- (p / p_sample / p_anno) +
+  plot_layout(ncol = 1, heights = c(3, 1, 2), guides = "collect") &
+  theme(
+    legend.position = "right"
+  )
+
+p_all
+
+
+```
