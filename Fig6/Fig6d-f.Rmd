@@ -1,0 +1,1334 @@
+
+
+```{r}
+
+library(scales)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+library(ggsignif)
+library(ggsci)
+library(patchwork)
+library(qs)
+
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig6/")
+
+
+```
+
+
+## Fig. 6d
+
+
+```{r}
+
+td_TCR_su001_post <- subset(td_TCR, patient == "su001" & TCR == "TCR" & treatment == "post")
+
+
+head(td_TCR_su001_post)
+
+table(td_TCR_su001_post$clusters)
+
+bulk_su001 <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/old/BCC_bulk_all.qs")
+
+head(bulk_su001)
+
+su001_post1 <- subset(bulk_su001, time == "post" & replicate == "Rep1")
+
+su001_post1$rep1 <- "post_rep1"
+
+su001_post1$cdr3b <- su001_post1$cdr3_aa_bl
+su001_post1$count_rep1 <- su001_post1$count_bl
+
+head(su001_post1)
+
+su001_post2 <- subset(bulk_su001, time == "post" & replicate == "Rep2")
+
+su001_post2$rep2 <- "post_rep2"
+
+su001_post2$cdr3b <- su001_post2$cdr3_aa_bl
+su001_post2$count_rep2 <- su001_post2$count_bl
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, su001_post1[, c("cdr3b", "count_rep1", "rep1")], by = "cdr3b") 
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, su001_post2[, c("cdr3b", "count_rep2", "rep2")], by = "cdr3b") 
+
+rownames(td_TCR_su001_post@meta.data) <- td_TCR_su001_post@meta.data$barcode_all
+
+
+
+head(td_TCR_su001_post)
+
+table(td_TCR_su001_post$rep1, td_TCR_su001_post$rep2)
+
+td_TCR_su001_post@meta.data <- td_TCR_su001_post@meta.data %>%
+  mutate(
+    rep1 = case_when(
+      rep1 == "post_rep1" ~ "post_rep1",
+      TRUE ~ "others",
+    )
+  )
+
+td_TCR_su001_post@meta.data <- td_TCR_su001_post@meta.data %>%
+  mutate(
+    rep2 = case_when(
+      rep2 == "post_rep2" ~ "post_rep2",
+      TRUE ~ "others",
+    )
+  )
+
+
+td_TCR_su001_post@meta.data <- td_TCR_su001_post@meta.data %>%
+      mutate(
+        distr = case_when(
+          rep1 == "others" & rep2 == "others" ~ "others",
+          rep1 == "others" & rep2 != "others" ~ "rep1_only",
+          rep1 != "others" & rep2 == "others" ~ "rep2_only",
+          rep1 != "others" & rep2 != "others" ~ "rep1_rep2",
+        )
+      )
+
+
+td_TCR_su001_post$count_rep1[is.na(td_TCR_su001_post$count_rep1)] <- 0
+td_TCR_su001_post$count_rep2[is.na(td_TCR_su001_post$count_rep2)] <- 0
+
+
+table(td_TCR_su001_post$rep1, td_TCR_su001_post$clusters)
+table(td_TCR_su001_post$rep2, td_TCR_su001_post$clusters)
+table(td_TCR_su001_post$clusters)
+
+
+color.code= c("grey90","#F1DF91", "#FBAD46", "#F36E21", "#C62832", "#8A1739", "#4B0E3D")
+
+library(Seurat)
+
+Embed_coords <- Embeddings(td_TCR_su001_post, "umap")
+
+td_TCR_su001_post$UMAP_1 <- Embed_coords[,1]
+td_TCR_su001_post$UMAP_2 <- Embed_coords[,2]
+
+Embed <- td_TCR_su001_post@meta.data[,c("cdr3b", "UMAP_1","UMAP_2", "count_rep1", "count_rep2", "cell_types")]
+
+
+head(Embed)
+
+library(ggrastr)
+library(tidydr)
+
+maskTable <- qread("/home/xumeng/TCR_Dynamic/ICB_T/clusters_analysis_2-1/maskTable.qs")
+
+
+library(RColorBrewer)
+
+color.code = c("grey90", brewer.pal(9, "YlOrRd")[1:9] )
+
+
+p1 <- ggplot(subset(Embed, count_rep1 > 0), aes(UMAP_1, UMAP_2)) +
+
+  geom_point_rast(
+    aes(
+      color = count_rep1,
+      size = log2(count_rep1 + 1)
+      # size = 0.2
+    ),
+    alpha = 1,
+    raster.dpi = 600,
+    shape = 19,
+    stroke = NA
+  ) +
+
+  scale_color_gradientn(colors = colorRampPalette(color.code)(255)) +
+  scale_size(range = c(0.1, 0.3), guide = "none") +  
+
+  new_scale_color() +
+
+  # stat_ellipse(
+  #   aes(color = clusters),
+  #   level = 0.9,
+  #   linewidth = 0.06,
+  #   alpha = 1
+  # ) +
+  geom_path(data = maskTable, aes(group = group), linewidth = 0.1, linetype = 2, color = "black") +  coord_fixed(ratio = 1) +  
+  scale_color_manual(values = colors_use) +
+
+  coord_fixed() +
+
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y=element_blank(),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1
+
+
+p2 <- ggplot(subset(Embed, count_rep2 > 0), aes(UMAP_1, UMAP_2)) +
+
+  geom_point_rast(
+    aes(
+      color = count_rep2,
+      size = log10(count_rep2 + 1)
+    ),
+    alpha = 0.8,
+    raster.dpi = 600,
+    shape = 19,
+    stroke = NA
+  ) +
+
+  scale_color_gradientn(colors = colorRampPalette(color.code)(255)) +
+  scale_size(range = c(0.1, 0.3), guide = "none") +  
+
+  new_scale_color() +
+
+  # stat_ellipse(
+  #   aes(color = clusters),
+  #   level = 0.9,
+  #   linewidth = 0.06,
+  #   alpha = 1
+  # ) +
+  geom_path(data = maskTable, aes(group = group), linewidth = 0.1, linetype = 2, color = "black") +  coord_fixed(ratio = 1) +  
+  scale_color_manual(values = colors_use) +
+
+  coord_fixed() +
+
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y=element_blank(),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+p2
+
+
+p <- p1 + p2
+
+
+p
+
+```
+
+
+## Fig. 6e,f
+
+
+### NB
+
+
+```{r}
+
+NB_Ex_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset/NB_Ex_TCR.qs")
+
+head(NB_Ex_TCR)
+
+NB_Ex_TCR <- NB_Ex_TCR %>%
+  mutate(
+    testname = case_when(
+      test == "Rep1_Rep1" ~ "test1",
+      test == "Rep2_Rep1" ~ "test2",
+      test == "Rep1_Rep2" ~ "test3",
+      test == "Rep2_Rep2" ~ "test4",
+      TRUE ~ "only",
+    )
+  )
+
+NB_Ex_TCR$cdr3b <- NB_Ex_TCR$CDR3_AA
+
+td_TCR_su001_post <- subset(td, patient == "su001" & TCR == "TCR" & treatment == "post")
+
+
+head(td_TCR_su001_post)
+
+head(NB_Ex_TCR[, c("cdr3b", "testname")])
+
+NB_Ex_TCR_1 <- NB_Ex_TCR %>%
+  distinct(cdr3b, testname) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = testname,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(NB_Ex_TCR_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, NB_Ex_TCR_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test1 == 1)$clusters)) %>% mutate(group="test1"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test2 == 1)$clusters)) %>% mutate(group="test2"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test3 == 1)$clusters)) %>% mutate(group="test3"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test4 == 1)$clusters)) %>% mutate(group="test4"),
+  
+)
+
+
+df
+
+colors_use <- c('#fc8d59','#9e9ac8','#F9C40A','#85C7DC','#0A71B6','#5280AC','#c6d1a7','#e31a1c','#f9d3d7','#08306b')
+
+
+p1 <- ggplot(subset(df, group %in% c("test2", "test4")), aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1
+
+
+```
+
+
+
+
+
+```{r}
+
+NB_rep_Ex <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset_rep/NB_Ex_TCR.qs")
+NB_rep_De <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset_rep/NB_De_TCR.qs")
+
+
+NB_rep_Ex <- subset(NB_rep_Ex, test == "post_Rep1_Rep2")
+NB_rep_De <- subset(NB_rep_De, test == "post_Rep1_Rep2")
+
+head(NB_rep_Ex)
+head(NB_rep_De)
+
+NB_rep_Ex$signif <- "Ex"
+NB_rep_De$signif <- "De"
+
+NB_rep <- bind_rows(NB_rep_Ex, NB_rep_De)
+
+
+NB_rep$cdr3b <- NB_rep$CDR3_AA
+
+
+NB_rep_1 <- NB_rep %>%
+  distinct(cdr3b, signif) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = signif,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(NB_rep_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, NB_rep_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df1 <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, Ex == 1)$clusters)) %>% mutate(group="Ex"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, De == 1)$clusters)) %>% mutate(group="De"),
+  
+  
+)
+
+
+df1
+
+
+p2 <- ggplot(df1, aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p2
+
+
+p_NB <- p2 + p1
+
+p_NB
+
+
+```
+
+
+
+### NP
+
+```{r}
+
+NP_Ex_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset/NP_Ex_TCR.qs")
+
+dim(NP_Ex_TCR)
+dim(NP_De_TCR)
+
+head(NP_Ex_TCR)
+
+NP_Ex_TCR <- NP_Ex_TCR %>%
+  mutate(
+    testname = case_when(
+      test == "Rep1_Rep1" ~ "test1",
+      test == "Rep2_Rep1" ~ "test2",
+      test == "Rep1_Rep2" ~ "test3",
+      test == "Rep2_Rep2" ~ "test4",
+      TRUE ~ "only",
+    )
+  )
+
+NP_Ex_TCR$cdr3b <- NP_Ex_TCR$CDR3_AA
+
+td_TCR_su001_post <- subset(td, patient == "su001" & TCR == "TCR" & treatment == "post")
+
+
+head(td_TCR_su001_post)
+
+head(NP_Ex_TCR[, c("cdr3b", "testname")])
+
+NP_Ex_TCR_1 <- NP_Ex_TCR %>%
+  distinct(cdr3b, testname) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = testname,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(NP_Ex_TCR_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, NP_Ex_TCR_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test1 == 1)$clusters)) %>% mutate(group="test1"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test2 == 1)$clusters)) %>% mutate(group="test2"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test3 == 1)$clusters)) %>% mutate(group="test3"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test4 == 1)$clusters)) %>% mutate(group="test4"),
+  
+)
+
+
+df
+
+
+p1 <- ggplot(subset(df, group %in% c("test2", "test4")), aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1
+
+
+```
+
+
+
+
+
+```{r}
+
+NP_rep_Ex <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset_rep/NP_Ex_TCR.qs")
+NP_rep_De <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset_rep/NP_De_TCR.qs")
+
+
+NP_rep_Ex <- subset(NP_rep_Ex, test == "post_Rep1_Rep2")
+NP_rep_De <- subset(NP_rep_De, test == "post_Rep1_Rep2")
+
+head(NP_rep_Ex)
+head(NP_rep_De)
+
+NP_rep_Ex$signif <- "Ex"
+NP_rep_De$signif <- "De"
+
+NP_rep <- bind_rows(NP_rep_Ex, NP_rep_De)
+
+
+NP_rep$cdr3b <- NP_rep$CDR3_AA
+
+
+NP_rep_1 <- NP_rep %>%
+  distinct(cdr3b, signif) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = signif,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(NP_rep_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, NP_rep_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df1 <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, Ex == 1)$clusters)) %>% mutate(group="Ex"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, De == 1)$clusters)) %>% mutate(group="De"),
+  
+  
+)
+
+
+df1
+
+
+p2 <- ggplot(df1, aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p2
+
+
+p_NP <- p2 + p1 
+
+p_NP
+
+
+```
+
+### P
+
+```{r}
+
+P_Ex_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset/P_Ex_TCR.qs")
+
+head(P_Ex_TCR)
+
+P_Ex_TCR <- P_Ex_TCR %>%
+  mutate(
+    testname = case_when(
+      test == "Rep1_Rep1" ~ "test1",
+      test == "Rep2_Rep1" ~ "test2",
+      test == "Rep1_Rep2" ~ "test3",
+      test == "Rep2_Rep2" ~ "test4",
+      TRUE ~ "only",
+    )
+  )
+
+P_Ex_TCR$cdr3b <- P_Ex_TCR$CDR3_AA
+
+td_TCR_su001_post <- subset(td, patient == "su001" & TCR == "TCR" & treatment == "post")
+
+
+head(td_TCR_su001_post)
+
+head(P_Ex_TCR[, c("cdr3b", "testname")])
+
+P_Ex_TCR_1 <- P_Ex_TCR %>%
+  distinct(cdr3b, testname) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = testname,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(P_Ex_TCR_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, P_Ex_TCR_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test1 == 1)$clusters)) %>% mutate(group="test1"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test2 == 1)$clusters)) %>% mutate(group="test2"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test3 == 1)$clusters)) %>% mutate(group="test3"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test4 == 1)$clusters)) %>% mutate(group="test4"),
+  
+)
+
+
+df
+
+
+p1 <- ggplot(subset(df, group %in% c("test2", "test4")), aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1
+
+```
+
+
+```{r}
+
+P_rep_Ex <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset_rep/P_Ex_TCR.qs")
+P_rep_De <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset_rep/P_De_TCR.qs")
+
+
+P_rep_Ex <- subset(P_rep_Ex, test == "post_Rep1_Rep2")
+P_rep_De <- subset(P_rep_De, test == "post_Rep1_Rep2")
+
+head(P_rep_Ex)
+head(P_rep_De)
+
+P_rep_Ex$signif <- "Ex"
+P_rep_De$signif <- "De"
+
+P_rep <- bind_rows(P_rep_Ex, P_rep_De)
+
+
+P_rep$cdr3b <- P_rep$CDR3_AA
+
+
+P_rep_1 <- P_rep %>%
+  distinct(cdr3b, signif) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = signif,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(P_rep_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, P_rep_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df1 <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, Ex == 1)$clusters)) %>% mutate(group="Ex"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, De == 1)$clusters)) %>% mutate(group="De"),
+  
+  
+)
+
+
+df1
+
+
+p2 <- ggplot(df1, aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p2
+
+
+p_P <- p2 + p1 
+
+p_P
+
+
+
+```
+
+
+### BB
+
+```{r}
+
+BB_Ex_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset/ch_all_across_BB.qs")
+
+head(BB_Ex_TCR)
+
+BB_Ex_TCR <- subset(BB_Ex_TCR, signif_origin == "Ex")
+
+BB_Ex_TCR <- BB_Ex_TCR %>%
+  mutate(
+    testname = case_when(
+      test == "Rep1_Rep1" ~ "test1",
+      test == "Rep2_Rep1" ~ "test2",
+      test == "Rep1_Rep2" ~ "test3",
+      test == "Rep2_Rep2" ~ "test4",
+      TRUE ~ "only",
+    )
+  )
+
+
+td_TCR_su001_post <- subset(td, patient == "su001" & TCR == "TCR" & treatment == "post")
+
+
+head(td_TCR_su001_post)
+
+head(BB_Ex_TCR[, c("cdr3b", "testname")])
+
+
+BB_Ex_TCR_1 <- BB_Ex_TCR %>%
+  distinct(cdr3b, testname) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = testname,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(BB_Ex_TCR_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, BB_Ex_TCR_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test1 == 1)$clusters)) %>% mutate(group="test1"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test2 == 1)$clusters)) %>% mutate(group="test2"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test3 == 1)$clusters)) %>% mutate(group="test3"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test4 == 1)$clusters)) %>% mutate(group="test4"),
+  
+)
+
+
+df
+
+
+p1 <- ggplot(subset(df, group %in% c("test2", "test4")), aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1
+
+
+
+```
+
+
+
+
+
+```{r}
+
+BB_rep <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset_rep/ch_all_rep_BB.qs")
+
+
+BB_rep <- subset(BB_rep, time == "post")
+
+head(BB_rep)
+
+
+BB_rep_1 <- BB_rep %>%
+  distinct(cdr3b, signif_origin) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = signif_origin,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(BB_rep_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, BB_rep_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df1 <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, Ex == 1)$clusters)) %>% mutate(group="Ex"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, De == 1)$clusters)) %>% mutate(group="De"),
+  
+  
+)
+
+
+df1
+
+
+p2 <- ggplot(df1, aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p2
+
+
+p_BB <- p2 + p1 
+
+p_BB
+
+
+
+```
+
+
+
+
+
+### B
+
+```{r}
+
+B_Ex_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset/ch_all_across_B.qs")
+
+head(B_Ex_TCR)
+
+B_Ex_TCR <- subset(B_Ex_TCR, signif_origin == "Ex")
+
+B_Ex_TCR <- B_Ex_TCR %>%
+  mutate(
+    testname = case_when(
+      test == "Rep1_Rep1" ~ "test1",
+      test == "Rep2_Rep1" ~ "test2",
+      test == "Rep1_Rep2" ~ "test3",
+      test == "Rep2_Rep2" ~ "test4",
+      TRUE ~ "only",
+    )
+  )
+
+
+td_TCR_su001_post <- subset(td, patient == "su001" & TCR == "TCR" & treatment == "post")
+
+
+head(td_TCR_su001_post)
+
+head(B_Ex_TCR[, c("cdr3b", "testname")])
+
+
+B_Ex_TCR_1 <- B_Ex_TCR %>%
+  distinct(cdr3b, testname) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = testname,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(B_Ex_TCR_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, B_Ex_TCR_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test1 == 1)$clusters)) %>% mutate(group="test1"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test2 == 1)$clusters)) %>% mutate(group="test2"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test3 == 1)$clusters)) %>% mutate(group="test3"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test4 == 1)$clusters)) %>% mutate(group="test4"),
+  
+)
+
+
+df
+
+
+p1 <- ggplot(subset(df, group %in% c("test2", "test4")), aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1
+
+
+
+```
+
+
+```{r}
+
+B_rep <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset_rep/ch_all_rep_B.qs")
+
+
+B_rep <- subset(B_rep, time == "post")
+
+head(B_rep)
+
+
+B_rep_1 <- B_rep %>%
+  distinct(cdr3b, signif_origin) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = signif_origin,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(B_rep_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, B_rep_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df1 <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, Ex == 1)$clusters)) %>% mutate(group="Ex"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, De == 1)$clusters)) %>% mutate(group="De"),
+  
+  
+)
+
+
+df1
+
+
+p2 <- ggplot(df1, aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p2
+
+
+p_B <- p2 + p1 
+
+p_B
+
+
+```
+
+
+
+
+### F
+
+```{r}
+
+F_Ex_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset/ch_all_across_F.qs")
+
+head(F_Ex_TCR)
+
+F_Ex_TCR <- subset(F_Ex_TCR, signif_origin == "Ex")
+
+F_Ex_TCR <- F_Ex_TCR %>%
+  mutate(
+    testname = case_when(
+      test == "Rep1_Rep1" ~ "test1",
+      test == "Rep2_Rep1" ~ "test2",
+      test == "Rep1_Rep2" ~ "test3",
+      test == "Rep2_Rep2" ~ "test4",
+      TRUE ~ "only",
+    )
+  )
+
+
+td_TCR_su001_post <- subset(td, patient == "su001" & TCR == "TCR" & treatment == "post")
+
+
+head(td_TCR_su001_post)
+
+head(F_Ex_TCR[, c("cdr3b", "testname")])
+
+
+F_Ex_TCR_1 <- F_Ex_TCR %>%
+  distinct(cdr3b, testname) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = testname,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(F_Ex_TCR_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, F_Ex_TCR_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test1 == 1)$clusters)) %>% mutate(group="test1"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test2 == 1)$clusters)) %>% mutate(group="test2"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test3 == 1)$clusters)) %>% mutate(group="test3"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, test4 == 1)$clusters)) %>% mutate(group="test4"),
+  
+)
+
+
+df
+
+
+p1 <- ggplot(subset(df, group %in% c("test2", "test4")), aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1
+
+
+
+```
+
+
+
+
+
+```{r}
+
+F_rep <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/BCC/data4noiset_rep/ch_all_rep_F.qs")
+
+
+F_rep <- subset(F_rep, time == "post")
+
+head(F_rep)
+
+
+F_rep_1 <- F_rep %>%
+  distinct(cdr3b, signif_origin) %>%      
+  mutate(value = 1L) %>%
+  pivot_wider(
+    names_from = signif_origin,
+    values_from = value,
+    values_fill = 0
+  )
+
+head(F_rep_1)
+
+
+td_TCR_su001_post@meta.data <- left_join(td_TCR_su001_post@meta.data, F_rep_1, by = "cdr3b")
+
+head(td_TCR_su001_post)
+
+
+df1 <- bind_rows(
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, Ex == 1)$clusters)) %>% mutate(group="Ex"),
+  as.data.frame(table(subset(td_TCR_su001_post@meta.data, De == 1)$clusters)) %>% mutate(group="De"),
+  
+  
+)
+
+
+df1
+
+
+p2 <- ggplot(df1, aes(x = group, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8) +
+  theme_bw() +
+  labs(
+    x = "Group",
+    y = "Count",
+    fill = "Cluster"
+  ) +
+  scale_fill_manual(values = colors_use) +
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p2
+
+
+p_F <- p2 + p1 
+
+p_F
+
+
+
+```
+
+
+```{r}
+
+library(patchwork)
+
+
+p_all <- wrap_plots(p_NB, p_BB, p_NP, p_P, p_B, p_F)
+
+
+p_all
+
+
+```
+

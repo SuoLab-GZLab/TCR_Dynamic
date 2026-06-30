@@ -1,0 +1,1014 @@
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig6/")
+
+```
+
+
+## Fig. 6h
+
+
+```{r}
+
+BB_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/ch_all_replicate_BB.qs")
+B_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/ch_all_replicate_B.qs")
+F_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/ch_all_replicate_F.qs")
+NB_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/three_replicate/ch_all_replicate_NB.qs")
+NP_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/three_replicate/ch_all_replicate_NP.qs")
+P_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/three_replicate/ch_all_replicate_P.qs")
+
+head(BB_TCR)
+
+NB_count <- table(NB_TCR$test, NB_TCR$signif_origin) %>% 
+as.data.frame() %>% 
+mutate( model = "NB"  )
+
+NP_count <- table(NP_TCR$test, NP_TCR$signif_origin)%>% 
+as.data.frame() %>% 
+mutate( model = "NP"  )
+
+P_count <- table(P_TCR$test, P_TCR$signif_origin)%>% 
+as.data.frame() %>% 
+mutate( model = "P"  )
+
+BB_count <- table(BB_TCR$test, BB_TCR$signif_origin)%>% 
+as.data.frame() %>% 
+mutate( model = "BB"  )
+
+B_count <- table(B_TCR$test, B_TCR$signif_origin)%>% 
+as.data.frame() %>% 
+mutate( model = "B"  )
+
+F_count <- table(F_TCR$test, F_TCR$signif_origin)%>% 
+as.data.frame() %>% 
+mutate( model = "F"  )
+
+
+model_count <- bind_rows(NB_count, NP_count, P_count, BB_count, B_count, F_count)
+
+
+head(model_count)
+
+colnames(model_count) <- c("test", "signif", "Freq", "model")
+
+model_count$model <- factor(model_count$model, levels = c("NB", "BB", "NP", "P", "B", "F"))
+
+p1 <- ggplot(model_count, aes(x = test, y = Freq, fill = signif)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_text(aes(label = Freq),
+            position = position_dodge(width = 0.8),
+            vjust = -0.3, size = 2) +
+facet_wrap( ~ model, scales = "fixed",  ncol = 6) +
+  labs(x = "Comparison", y = "Count", fill = "Origin") +
+  scale_fill_manual(values = c("#ca8e2e", "#993822"))+
+  theme_bw(base_size = 13)+
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size=6, color = "black"),
+    # axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), # 刻度线宽
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1
+
+
+```
+
+
+## Fig. 6i
+
+
+```{r}
+
+puck8_TCR_locations <- read.csv("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/data/puck8.TCR_locations1.csv")
+
+puck8_locations_reference <- read.csv("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/data/puck8.locations_reference.csv")
+
+puck8_TCR_locations$X <- NULL
+puck8_locations_reference$X <- NULL
+
+head(puck8_TCR_locations)
+head(puck8_locations_reference)
+
+punk8 <- left_join(puck8_TCR_locations, puck8_locations_reference, by = c("x", "y"))  %>% unique()
+
+head(punk8)
+
+table(punk8$region)
+
+dim(punk8)
+
+
+
+```
+
+
+```{r}
+
+puck9_TCR_locations <- read.csv("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/data/puck9.TCR_locations1.csv")
+
+puck9_locations_reference <- read.csv("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/data/puck9.locations_reference.csv")
+
+puck9_TCR_locations$X <- NULL
+puck9_locations_reference$X <- NULL
+
+head(puck9_TCR_locations)
+head(puck9_locations_reference)
+
+
+punk9 <- left_join(puck9_TCR_locations, puck9_locations_reference, by = c("x", "y"))  %>% unique()
+
+head(punk9)
+
+
+```
+
+
+
+
+```{r}
+
+punk10_TCR_locations <- read.csv("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/data/puck10.TCR_locations1.csv")
+
+punk10_locations_reference <- read.csv("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/data/puck10.locations_reference.csv")
+
+punk10_TCR_locations$X <- NULL
+punk10_locations_reference$X <- NULL
+
+head(punk10_TCR_locations)
+head(punk10_locations_reference)
+
+
+punk10 <- left_join(punk10_TCR_locations, punk10_locations_reference, by = c("x", "y"))  %>% unique()
+
+
+head(punk10)
+
+```
+
+
+
+
+```{r}
+
+head(punk8)
+head(punk9)
+head(punk10)
+
+
+# 每个 region 中每个 clonotype 的计数
+region_clono_count_punk8 <- punk8 %>%
+  count(region, clonotype, name = "n") %>%
+  arrange(region, desc(n))
+
+
+region_clono_count_punk9 <- punk9 %>%
+  count(region, clonotype, name = "n") %>%
+  arrange(region, desc(n))
+
+
+region_clono_count_punk10 <- punk10 %>%
+  count(region, clonotype, name = "n") %>%
+  arrange(region, desc(n))
+
+
+head(region_clono_count_punk8)
+head(region_clono_count_punk9)
+head(region_clono_count_punk10)
+
+
+
+region_clono_count_punk8_tumor <- subset(region_clono_count_punk8, region == "Tumor")
+region_clono_count_punk9_tumor <- subset(region_clono_count_punk9, region == "Tumor")
+region_clono_count_punk10_tumor <- subset(region_clono_count_punk10, region == "Tumor")
+
+
+head(region_clono_count_punk8_tumor)
+
+region_clono_count_punk8_tumor$replicate <- "Rep1"
+region_clono_count_punk9_tumor$replicate <- "Rep2"
+region_clono_count_punk10_tumor$replicate <- "Rep3"
+
+region_clono_count <- bind_rows(region_clono_count_punk8_tumor, region_clono_count_punk9_tumor, region_clono_count_punk10_tumor)
+
+
+```
+
+
+
+```{r}
+
+# Sig. TCR by NB: "CAVVGGSARQLTF"    "CAVYRASSGSARQLTF" "CAASIRG_GFQKLVF"  "CLVGGLLGGSYIPTF" 
+
+head(punk8)
+
+punk8_T <- subset(punk8, region == "Tumor")
+punk9_T <- subset(punk9, region == "Tumor")
+punk10_T <- subset(punk10, region == "Tumor")
+
+library(ggrastr)
+
+head(punk8_T)
+
+subset(punk8_T, clonotype == "CAVVGGSARQLTF")
+subset(punk9_T, clonotype == "CAVVGGSARQLTF")
+subset(punk10_T, clonotype == "CAVVGGSARQLTF")
+
+
+p1  <- ggplot() +
+  
+      geom_point_rast(
+    data = puck8_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk8_T[grepl("CAVVGGSARQLTF", punk8_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+p1
+
+
+p2  <- ggplot() +
+  
+      geom_point_rast(
+    data = puck9_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk9_T[grepl("CAVVGGSARQLTF", punk9_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+
+p3 <- ggplot() +
+  
+      geom_point_rast(
+    data = punk10_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk10_T[grepl("CAVVGGSARQLTF", punk10_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+p <- p1 + p2 + p3
+
+p
+
+
+ggsave("three_replicate_NB_TCR1.pdf", p, width = 3, height = 1)
+
+
+
+```
+
+
+
+
+
+```{r}
+
+
+p1  <- ggplot() +
+  
+      geom_point_rast(
+    data = puck8_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk8_T[grepl("CAVYRASSGSARQLTF", punk8_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+p1
+
+
+p2  <- ggplot() +
+  
+      geom_point_rast(
+    data = puck9_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk9_T[grepl("CAVYRASSGSARQLTF", punk9_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+
+p3 <- ggplot() +
+  
+      geom_point_rast(
+    data = punk10_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk10_T[grepl("CAVYRASSGSARQLTF", punk10_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+p <- p1 + p2 + p3
+
+p
+
+
+```
+
+
+
+```{r}
+
+
+p1  <- ggplot() +
+  
+      geom_point_rast(
+    data = puck8_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk8_T[grepl("CAASIRG_GFQKLVF", punk8_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+
+p2  <- ggplot() +
+  
+      geom_point_rast(
+    data = puck9_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk9_T[grepl("CAASIRG_GFQKLVF", punk9_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+
+p3 <- ggplot() +
+  
+      geom_point_rast(
+    data = punk10_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk10_T[grepl("CAASIRG_GFQKLVF", punk10_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+p <- p1 + p2 + p3
+
+p
+
+```
+
+
+
+
+
+```{r}
+
+# "CAVVGGSARQLTF"    "CAVYRASSGSARQLTF" "CAASIRG_GFQKLVF"  "CLVGGLLGGSYIPTF" 
+
+head(punk8)
+
+punk8_T <- subset(punk8, region == "Tumor")
+punk9_T <- subset(punk9, region == "Tumor")
+punk10_T <- subset(punk10, region == "Tumor")
+
+p1  <- ggplot() +
+  
+      geom_point_rast(
+    data = puck8_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk8_T[grepl("CLVGGLLGGSYIPTF", punk8_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+
+p2  <- ggplot() +
+  
+      geom_point_rast(
+    data = puck9_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk9_T[grepl("CLVGGLLGGSYIPTF", punk9_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+
+p3 <- ggplot() +
+  
+      geom_point_rast(
+    data = punk10_locations_reference,
+    aes(x = x, y = y, color = region),
+    size = 0.1, alpha = 0.1, stroke = NA, shape = 19
+  ) +
+  scale_color_manual(values = rev(c("#1F77B4",  "#FF7F0E", "#2CA02C")))+
+   
+    geom_point(
+      data = punk10_T[grepl("CLVGGLLGGSYIPTF", punk10_T$clonotype), ],
+      aes(x = x, y = y),
+      shape = 17, stroke = NA, color = "black", size = 0.6, alpha = 0.9, inherit.aes = FALSE
+    ) +
+    coord_fixed() +
+    theme_void() +
+    ggtitle("") +
+    theme(
+    legend.position = "none",
+  ) 
+
+
+```
+
+
+
+
+
+## Fig. 6j
+
+
+
+```{r}
+
+region_clono_count$region <- NULL
+
+head(region_clono_count)
+
+table(region_clono_count$replicate)
+
+
+# 将数据框转换为宽格式
+data4dis_wide <- region_clono_count %>%
+  pivot_wider(
+    names_from = replicate,       # 以 time 列的值作为新列名
+    values_from = n,  # 以 count_bl 作为填充值
+    values_fill = list(n = 0)  # 缺失值填充为 0（可选）
+  )
+
+head(data4dis_wide)
+
+
+data4dis_wide_1 <- data4dis_wide %>%
+  mutate(
+    non_zero_count = rowSums(across(starts_with("Rep")) > 0),
+    status = if_else(
+      non_zero_count == 1,
+      "only",
+      paste0("across", non_zero_count)
+    )
+  ) %>% as.data.frame()
+
+head(data4dis_wide_1)
+
+
+region_clono_count <- left_join(region_clono_count, data4dis_wide_1[, c("clonotype", "status")], by = "clonotype")
+
+head(region_clono_count)
+
+colnames(region_clono_count)[1] <- "cdr3b"
+
+```
+
+
+```{r}
+
+NB <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/three_replicate/ch_all_replicate_NB.qs")
+
+NB
+
+unique(NB$cdr3b)
+
+head(NB)
+
+NB1 <- NB[, c("test", "model", "cdr3b", "signif_origin")]
+
+
+region_clono_count_NB <- left_join(region_clono_count, NB1, by = "cdr3b")
+
+head(region_clono_count_NB)
+
+subset(region_clono_count_NB, signif_origin == "Ex")
+subset(region_clono_count_NB, signif_origin == "De")
+
+region_clono_count_NB_rank <- region_clono_count_NB %>%
+  group_by(replicate) %>%
+  arrange(desc(n), .by_group = TRUE) %>%
+  mutate(rank = row_number()) %>%
+  ungroup()
+
+
+region_clono_count_NB_rank$model <- "NB"
+
+head(region_clono_count_NB_rank)
+
+
+```
+
+
+
+```{r}
+
+NP <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/three_replicate/ch_all_replicate_NP.qs")
+
+head(NP)
+
+NP1 <- NP[, c("test", "model", "cdr3b", "signif_origin")]
+
+head(NP1)
+
+region_clono_count_NP <- left_join(region_clono_count, NP1, by = "cdr3b")
+
+head(region_clono_count_NP)
+
+subset(region_clono_count_NP, signif_origin == "Ex")
+subset(region_clono_count_NP, signif_origin == "De")
+
+region_clono_count_NP_rank <- region_clono_count_NP %>%
+  group_by(replicate) %>%
+  arrange(desc(n), .by_group = TRUE) %>%
+  mutate(rank = row_number()) %>%
+  ungroup()
+
+region_clono_count_NP_rank$model <- "NP"
+
+
+head(region_clono_count_NP_rank)
+
+
+```
+
+
+
+
+```{r}
+
+P <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/three_replicate/ch_all_replicate_P.qs")
+
+head(P)
+
+P1 <- P[, c("test", "model", "cdr3b", "signif_origin")]
+
+
+region_clono_count_P <- left_join(region_clono_count, P1, by = "cdr3b")
+
+head(region_clono_count_P)
+
+subset(region_clono_count_P, signif_origin == "Ex")
+subset(region_clono_count_P, signif_origin == "De")
+
+region_clono_count_P_rank <- region_clono_count_P %>%
+  group_by(replicate) %>%
+  arrange(desc(n), .by_group = TRUE) %>%
+  mutate(rank = row_number()) %>%
+  ungroup()
+
+region_clono_count_P_rank$model <- "P"
+
+head(region_clono_count_P_rank)
+
+
+```
+
+
+
+```{r}
+
+BB <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/ch_all_replicate_BB.qs")
+
+head(BB)
+
+BB1 <- BB[, c("test", "cdr3b", "signif_origin")]
+
+BB1$model <- "BB"
+
+region_clono_count_BB <- left_join(region_clono_count, BB1, by = "cdr3b")
+
+head(region_clono_count_BB)
+
+subset(region_clono_count_BB, signif_origin == "Ex")
+subset(region_clono_count_BB, signif_origin == "De")
+
+region_clono_count_BB_rank <- region_clono_count_BB %>%
+  group_by(replicate) %>%
+  arrange(desc(n), .by_group = TRUE) %>%
+  mutate(rank = row_number()) %>%
+  ungroup()
+
+region_clono_count_BB_rank$model <- "BB"
+
+head(region_clono_count_BB_rank)
+dim(region_clono_count_BB_rank)
+
+
+```
+
+
+
+
+```{r}
+
+B <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/ch_all_replicate_B.qs")
+
+head(B)
+
+B1 <- B[, c("test", "cdr3b", "signif_origin")]
+
+B1$model <- "B"
+
+region_clono_count_B <- left_join(region_clono_count, B1, by = "cdr3b")
+
+head(region_clono_count_B)
+
+subset(region_clono_count_B, signif_origin == "Ex")
+subset(region_clono_count_B, signif_origin == "De")
+
+region_clono_count_B_rank <- region_clono_count_B %>%
+  group_by(replicate) %>%
+  arrange(desc(n), .by_group = TRUE) %>%
+  mutate(rank = row_number()) %>%
+  ungroup()
+
+region_clono_count_B_rank$model <- "B"
+
+head(region_clono_count_B_rank)
+dim(region_clono_count_B_rank)
+
+
+```
+
+
+
+```{r}
+
+F <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Slide-TCR-seq/analysis/ch_all_replicate_F.qs")
+
+head(F)
+
+F1 <- F[, c("test", "cdr3b", "signif_origin")]
+
+F1$model <- "F"
+
+region_clono_count_F <- left_join(region_clono_count, F1, by = "cdr3b")
+
+head(region_clono_count_F)
+
+subset(region_clono_count_F, signif_origin == "Ex")
+subset(region_clono_count_F, signif_origin == "De")
+
+region_clono_count_F_rank <- region_clono_count_F %>%
+  group_by(replicate) %>%
+  arrange(desc(n), .by_group = TRUE) %>%
+  mutate(rank = row_number()) %>%
+  ungroup()
+
+region_clono_count_F_rank$model <- "F"
+
+head(region_clono_count_F_rank)
+
+dim(region_clono_count_F_rank)
+
+
+```
+
+
+```{r}
+
+region_clono_count_rank <- bind_rows(region_clono_count_NB_rank, region_clono_count_NP_rank, region_clono_count_P_rank, region_clono_count_BB_rank, region_clono_count_B_rank, region_clono_count_F_rank)
+
+head(region_clono_count_rank)
+
+
+region_clono_count_rank <- region_clono_count_rank %>%
+  mutate(
+    signif_origin = case_when(
+      signif_origin == "Ex" ~ "Yes",
+      signif_origin == "De" ~ "Yes",
+      TRUE ~ "No"
+    )
+  )
+
+region_clono_count_rank$test <- NULL
+
+region_clono_count_rank <- unique(region_clono_count_rank)
+
+table(region_clono_count_rank$model)
+
+
+region_clono_count_rank$model <- factor(region_clono_count_rank$model, levels = c("NB", "BB", "NP", "P", "B", "F"))
+
+
+p2 <- ggplot(subset(region_clono_count_rank, rank <= 100), aes(x = rank, y = model, fill = signif_origin)) +
+  geom_tile() +
+  scale_fill_manual(values = c("No"= "grey90", "Yes" = "#1F77B4"))+
+facet_wrap(~ replicate, scales = "free", ncol = 1) +
+  labs(x = "Model", y = "Dataset", fill = "Mean signif_ratio") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size = 6, color = "black"),
+    axis.text.y = element_text(size = 6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 7)
+  )
+
+
+
+p2 <- ggplot(region_clono_count_rank, aes(x = rank, y = model, fill = signif_origin)) +
+  geom_tile() +
+  scale_fill_manual(values = c("No"= "grey90", "Yes" = "#1F77B4"))+
+facet_wrap(~ replicate, scales = "fixed", ncol = 1) +
+  labs(x = "Model", y = "Dataset", fill = "Mean signif_ratio") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size = 6, color = "black"),
+    axis.text.y = element_text(size = 6, color = "black"),
+    # axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 7)
+  )
+
+p2
+
+
+```
+
+
+
+
+```{r}
+
+
+library(ggplot2)
+
+
+region_clono_count_1 <- subset(region_clono_count, n >= 2)
+
+table(region_clono_count_1$replicate)
+
+region_clono_count_rank_1 <- region_clono_count %>%
+  group_by(replicate) %>%
+  arrange(desc(n), .by_group = TRUE) %>%
+  mutate(rank = row_number()) %>%
+  ungroup()
+
+
+
+region_clono_count_rank$group <- factor(region_clono_count_rank$group, levels = c("Specific", "Across2", "Across3", "De", "Ex"))
+
+region_clono_count_rank$model <- "NB"
+
+head(region_clono_count_rank)
+
+region_clono_count_rank <- region_clono_count_rank %>%
+  mutate(
+    signif_origin = case_when(
+      signif_origin == "Ex" ~ "Ex",
+      signif_origin == "De" ~ "De",
+      TRUE ~ "Others"
+    )
+  )
+
+
+
+region_clono_count_rank_1$status <- factor(region_clono_count_rank_1$status, levels = c("only", "across2", "across3"))
+
+library(ggsci)
+
+table(region_clono_count_rank_1$replicate)
+
+
+head(region_clono_count_rank_1)
+
+min(region_clono_count_rank_1$n)
+
+
+
+
+
+p1 <- ggplot(
+  region_clono_count_rank_1,
+  aes(x = rank, y = n + 1, fill = status)
+) +
+  geom_col(width = 0.9) +
+  scale_fill_manual(values = c(
+    "only" = "grey80",
+    "across2" = "skyblue",
+    "across3" = "tomato"
+  )) +
+  scale_y_continuous(
+    trans = scales::log2_trans(),
+    breaks = c(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024),
+    labels = function(x) x 
+  ) +
+  facet_wrap(~ replicate, scales = "fixed", ncol = 1) +
+  labs(
+    x = "Clonotype Rank",
+    y = "Count",
+    fill = "Group"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size = 6, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 6, color = "black"),
+    axis.title.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 7)
+  )
+
+p1
+
+
+
+
+```
+
+
+```{r}
+
+p <- p1 + p2 + plot_layout(ncol =1)
+
+p
+
+
+```
+
+
+
+
+
+
+
+
+
+

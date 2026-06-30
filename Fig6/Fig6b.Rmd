@@ -1,0 +1,824 @@
+
+
+```{r}
+
+library(scales)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+library(ggsignif)
+library(ggsci)
+library(patchwork)
+library(qs)
+
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig6/")
+
+```
+
+
+## scTCR
+
+```{r}
+
+td <- qread("/home/xumeng/TCR_Dynamic/ICB_T/TCR_analysis_2-1/td_TCR.qs", nthreads = 12)
+
+head(td)
+
+
+source("/soft/sim//R_package/ArchTCR/R/utilities.R")
+
+td$TCR_size <- NULL 
+
+td <- clonosize(sce = td, sample = "sample", tcr_call = "cdr3b")
+
+head(td)
+
+td_TCR <- subset(td, TCR == "TCR" & response != "no_data")
+
+td_TCR$pd <- paste0(td_TCR$patient, "@", td_TCR$datasets)
+
+head(td_TCR)
+
+dim(td_TCR)
+
+```
+
+
+
+
+```{r}
+
+
+NB_Ex_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/scTCR/scTCR_NB_Ex_TCR.qs")
+NB_De_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/scTCR/scTCR_NB_De_TCR.qs")
+
+NB_Ex_TCR$signif_origin = "Ex"
+NB_De_TCR$signif_origin = "De"
+
+NB_TCR <- bind_rows(NB_Ex_TCR[, c("CDR3_AA", "status", "signif_origin", "pt")], NB_De_TCR[, c( "CDR3_AA", "status", "signif_origin", "pt")])
+
+head(NB_TCR)
+
+colnames(NB_TCR)[c(1, 4)] <- c("cdr3b", "pd")
+
+head(NB_TCR)
+
+unique(NB_TCR$pd)
+
+NB_TCR$Ex_type_NB <- "NB"
+
+
+NB_TCR <- NB_TCR %>%
+ mutate(
+        pd = case_when(
+          pd == "P002@BC" ~ "P002@BC_zhang",
+          pd == "P005@BC" ~ "P005@BC_zhang",
+          pd == "P18" ~ "P18_HN@HN",
+          pd == "P29" ~ "P29_HN@HN",
+          pd == "Patient03T2@BC" ~ "Patient03T2@BC_Shiao",
+          pd == "Patient03T1@BC" ~ "Patient03T2@BC_Shiao",
+          pd == "Patient09@BC" ~ "Patient09@BC_Shiao",
+          pd == "Patient12@BC" ~ "Patient12@BC_Shiao",
+          pd == "Patient18@BC" ~ "Patient18@BC_Shiao",
+          pd == "Patient53@BC" ~ "Patient53@BC_Shiao",
+          pd == "Patient56@BC" ~ "Patient56@BC_Shiao",
+          TRUE ~ pd,
+        )
+      )
+
+
+
+td_TCR$signif_origin <- NULL
+td_TCR$Ex_type_NB <- NULL
+
+
+head(td_TCR)
+
+unique(td_TCR$pd)
+
+
+td_TCR@meta.data <- left_join(td_TCR@meta.data, NB_TCR[, c("pd", "Ex_type_NB", "cdr3b", "signif_origin")], by = c("pd", "cdr3b"))
+
+rownames(td_TCR@meta.data) <- td_TCR@meta.data$barcode_all
+
+table(td_TCR$pd, td_TCR$Ex_type_NB)
+
+
+td_TCR@meta.data <- td_TCR@meta.data %>%
+ mutate(
+        signif_origin = case_when(
+          signif_origin == "Ex" ~ "Ex",
+          signif_origin == "De" ~ "De",
+          TRUE ~ "Ps",
+        )
+      )
+
+
+patients <- unique(subset(td_TCR@meta.data, signif_origin %in% c("Ex", "De"))$pd)
+
+head(patients)
+
+td_TCR_signif <- subset(td_TCR, pd %in% patients)
+
+
+```
+
+
+```{r}
+
+
+td_TCR_1 <- subset(td_TCR_signif, treatment == "pre")
+td_TCR_2 <- subset(td_TCR_signif, treatment == "post")
+
+
+
+```
+
+
+## Fig. 6b and Extended Data Fig. 6c
+
+
+```{r}
+
+head(td_TCR_1)
+
+Embed <- td_TCR_1@meta.data[,c("cdr3b", "UMAP_1","UMAP_2", "signif_origin",  "cell_types")]
+
+# Embed <- na.omit(Embed)
+
+
+head(Embed)
+
+table(Embed$signif_origin)
+
+
+library(ggrastr)
+library(tidydr)
+
+library(ggnewscale)
+
+maskTable <- qread("/home/xumeng/TCR_Dynamic/ICB_T/clusters_analysis_2-1/maskTable.qs")
+
+p1 <- ggplot(data = subset(Embed, signif_origin == "Ex" & cdr3b != "CASSDAGDTDTQYF"),
+    aes(UMAP_1, UMAP_2)) +
+
+  # Ex 
+  geom_point_rast(
+    
+    color = "#D62728",
+    shape = 19,
+    stroke = NA,
+    size = 0.05,
+    alpha = 0.9
+  ) +
+
+  geom_path(data = maskTable, aes(group = group), linewidth = 0.1, linetype = 2, color = "black") +  coord_fixed(ratio = 1) +  
+
+
+  coord_fixed() +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_blank(),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+p1
+
+
+p2 <- ggplot(subset(Embed, signif_origin == "De" & cdr3b != "CASSDAGDTDTQYF"),
+    aes(UMAP_1, UMAP_2)) +
+
+  # Ex 
+  geom_point_rast(
+    
+    color = "#1F77B4",
+    shape = 19,
+    stroke = NA,
+    size = 0.05,
+    alpha = 0.9
+  ) +
+
+  geom_path(data = maskTable, aes(group = group), linewidth = 0.1, linetype = 2, color = "black") +  coord_fixed(ratio = 1) +  
+
+  coord_fixed() +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_blank(),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p2
+
+```
+
+
+
+
+
+```{r}
+
+
+Embed <- td_TCR_2@meta.data[,c("cdr3b", "UMAP_1","UMAP_2", "signif_origin",  "cell_types")]
+
+
+p3 <- ggplot(data = subset(Embed, signif_origin == "Ex" & cdr3b != "CASSDAGDTDTQYF"),
+    aes(UMAP_1, UMAP_2)) +
+
+  # Ex 
+  geom_point_rast(
+    
+    color = "#D62728",
+    shape = 19,
+    stroke = NA,
+    size = 0.05,
+    alpha = 0.9
+  ) +
+
+  geom_path(data = maskTable, aes(group = group), linewidth = 0.1, linetype = 2, color = "black") +  coord_fixed(ratio = 1) +  
+
+  coord_fixed() +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_blank(),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p4 <- ggplot(data = subset(Embed, signif_origin == "De" & cdr3b != "CASSDAGDTDTQYF"),
+    aes(UMAP_1, UMAP_2)) +
+
+  # Ex 
+  geom_point_rast(
+    
+    color = "#1F77B4",
+    shape = 19,
+    stroke = NA,
+    size = 0.05,
+    alpha = 0.9
+  ) +
+
+  geom_path(data = maskTable, aes(group = group), linewidth = 0.1, linetype = 2, color = "black") +  coord_fixed(ratio = 1) +  
+
+  coord_fixed() +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_blank(),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p <- p1 + p2 + p3 + p4
+
+p
+
+
+```
+
+
+
+```{r}
+
+td_TCR_signif_data <- subset(td_TCR_signif@meta.data, signif_origin %in% c("Ex", "De"))
+
+
+head(td_TCR_signif_data[, c("signif_origin", "clusters", "treatment")])
+
+library(dplyr)
+
+table(td_TCR_signif_data$signif_origin, td_TCR_signif_data$clusters)
+
+head(td_TCR_signif_data)
+
+td_TCR_signif_data <- subset(td_TCR_signif_data, cdr3b != "CASSDAGDTDTQYF")
+
+stat_tb <- td_TCR_signif_data %>%
+  count(treatment, clusters, signif_origin, name = "n") %>%
+  group_by(treatment, signif_origin) %>%
+  mutate(
+    total = sum(n),
+    prop  = n / total
+  ) %>%
+  ungroup()
+
+stat_tb
+
+
+library(ggplot2)
+
+
+
+head(mean_ratio_wide)
+
+library(RColorBrewer)
+
+tempColors = c("white", "grey90", brewer.pal(9, "YlOrRd")[4:9] )
+
+library(scales)
+
+
+fmt_sci <- function(x, digits = 2) {
+  out <- sprintf(paste0("%.", digits - 1, "e"), x)  # 5.7e-05
+  sub("e-0", "e-", out)  # 让 e-05 -> e-5
+}
+ 
+head(df_sum)
+
+stat_tb$treatment <- factor(stat_tb$treatment, levels = c("post", "pre"))
+
+
+stat_tb <- subset(stat_tb, (treatment == "pre" & signif_origin == "De") | (treatment == "post" & signif_origin == "Ex") )
+
+
+p_Tcell <- ggplot(stat_tb, aes(x = treatment, y = clusters, fill = prop)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(prop, 2)),
+            size = 2, color = "black") +
+  scale_fill_gradientn(colours = tempColors[1:6],
+                      #  trans = "log10",
+                       na.value = "white") +
+facet_wrap(~ signif_origin, scales = "free", ncol = 1) +
+  labs(x = "Model", y = "Dataset", fill = "Mean signif_ratio") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size = 6, color = "black"),
+    axis.text.y = element_text(size = 6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 7)
+  )
+
+p_Tcell
+
+
+ggsave("Signif_Tcell_NB_0630.pdf", p_Tcell, width = 1.8, height = 3)
+
+
+
+```
+
+## Extended Data Fig. 6e,f
+
+
+```{r}
+
+source("/soft/sim/R_package/ArchTCR/R/TCR_share.R")
+
+head(td_TCR_signif_data)
+
+
+res1 <- TCR_share(subset(td_TCR_signif_data, signif_origin == "Ex" & status_s == "across"), time1 = "treatment",cdraa="cdr3b", cluster = "clusters", method = "overlap")
+
+res1$plot
+
+res2 <- TCR_share(subset(td_TCR_signif_data, signif_origin == "De" & status_s == "across"), time1 = "treatment",cdraa="cdr3b", cluster = "clusters", method = "overlap")
+
+res2$plot
+
+ggsave("Ex_share_across_time_NB_Ex.pdf", res1$plot, width = 5.2, height = 2.6)
+ggsave("Ex_share_across_time_NB_De.pdf", res2$plot, width = 5.2, height = 2.6)
+
+
+
+```
+
+
+## Extended Data Fig. 6d
+
+
+## bulk
+
+
+```{r}
+
+td_TCR <- subset(td, TCR == "TCR" & datasets %in% c("BCC", "HN"))
+
+td_TCR$pd <- paste0(td_TCR$patient, "@", td_TCR$datasets)
+
+
+NB_Ex_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/HN/NB_Ex_TCR.qs")
+NB_De_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/HN/NB_De_TCR.qs")
+
+NB_Ex_TCR$signif_origin = "Ex"
+NB_De_TCR$signif_origin = "De"
+
+head(NB_Ex_TCR)
+
+NB_TCR_HN <- bind_rows(NB_Ex_TCR[, c("pt", "model", "CDR3_AA", "status", "signif_origin")], NB_De_TCR[, c("pt", "model", "CDR3_AA", "status", "signif_origin")])
+
+head(NB_TCR_HN)
+
+NB_TCR_HN$datasets <- "HN"
+NB_TCR_HN$pt <- paste0(NB_TCR_HN$pt, "_HN")
+
+
+NB_Ex_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/BCCT/NB_De_TCR.qs")
+NB_De_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/BCCT/NB_De_TCR.qs")
+
+NB_Ex_TCR$signif_origin = "Ex"
+NB_De_TCR$signif_origin = "De"
+
+head(NB_Ex_TCR)
+
+
+NB_TCR_BCC <- bind_rows(NB_Ex_TCR[, c("pt", "model", "CDR3_AA", "status", "signif_origin")], NB_De_TCR[, c("pt", "model", "CDR3_AA", "status", "signif_origin")])
+
+head(NB_TCR_BCC)
+
+NB_TCR_BCC$datasets <- "BCC"
+
+
+NB_TCR <- bind_rows(NB_TCR_BCC, NB_TCR_HN)
+
+head(NB_TCR)
+
+
+colnames(NB_TCR) <- c("patient", "model", "cdr3b", "status_bulk", "signif_origin", "datasets")
+
+unique(NB_TCR$patient)
+unique(td_TCR$patient)
+unique(td_TCR$datasets)
+unique(NB_TCR$datasets)
+unique(td_TCR$pd)
+
+# NB_TCR$cdr3b <- NB_TCR$CDR3_AA
+# NB_TCR$CDR3_AA <- NULL
+NB_TCR$model <- NULL
+NB_TCR$status_bulk <- NULL
+
+NB_TCR <- unique(NB_TCR)
+
+td_TCR <- subset(td_TCR, patient %in% unique(NB_TCR$patient))
+
+unique(td_TCR$patient)
+
+
+```
+
+
+
+
+```{r}
+
+library(Seurat)
+
+head(td_TCR)
+head(NB_TCR)
+
+td_TCR_data <- td_TCR@meta.data
+
+td_TCR_data <- left_join(td_TCR_data, NB_TCR, by = c("patient",  "datasets", "cdr3b"))
+
+head(td_TCR_data)
+
+# rownames(td_TCR@meta.data) <- td_TCR@meta.data$barcode_all
+
+td_TCR_1 <- subset(td_TCR_data, treatment == "pre")
+td_TCR_2 <- subset(td_TCR_data, treatment == "post")
+
+
+```
+
+
+
+```{r}
+
+head(td_TCR_1)
+
+Embed <- td_TCR_1[,c("cdr3b", "UMAP_1","UMAP_2", "signif_origin",  "cell_types")]
+
+
+
+p1 <- ggplot(data = subset(Embed, signif_origin == "Ex" & cdr3b != "CASSDAGDTDTQYF"),
+    aes(UMAP_1, UMAP_2),) +
+
+  # Ex 
+  geom_point_rast(
+    
+    color = "#D62728",
+    shape = 19,
+    stroke = NA,
+    size = 0.05,
+    alpha = 0.9
+  ) +
+
+  geom_path(data = maskTable, aes(group = group), linewidth = 0.1, linetype = 2, color = "black") +  coord_fixed(ratio = 1) +  
+
+
+  # coord_fixed() +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_blank(),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) + coord_fixed()
+
+
+p1
+
+
+p2 <- ggplot(data = subset(Embed, signif_origin == "De" & cdr3b != "CASSDAGDTDTQYF"),
+        aes(UMAP_1, UMAP_2),) +
+
+  # Ex 
+  geom_point_rast(
+    
+    color = "#1F77B4",
+    shape = 19,
+    stroke = NA,
+    size = 0.05,
+    alpha = 0.9
+  ) +
+
+
+  geom_path(data = maskTable, aes(group = group), linewidth = 0.1, linetype = 2, color = "black") +  coord_fixed(ratio = 1) +  
+
+  # coord_fixed() +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_blank(),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) + coord_fixed()
+
+
+p2
+
+```
+
+
+
+```{r}
+
+head(td_TCR_1)
+
+Embed <- td_TCR_2[,c("cdr3b", "UMAP_1","UMAP_2", "signif_origin",  "cell_types")]
+
+
+
+p3 <- ggplot(data = subset(Embed, signif_origin == "Ex" & cdr3b != "CASSDAGDTDTQYF"),
+    aes(UMAP_1, UMAP_2)) +
+
+  # Ex 
+  geom_point_rast(
+    
+    color = "#D62728",
+    shape = 19,
+    stroke = NA,
+    size = 0.05,
+    alpha = 0.9
+  ) +
+
+
+  geom_path(data = maskTable, aes(group = group), linewidth = 0.1, linetype = 2, color = "black") +  coord_fixed(ratio = 1) +  
+
+  # coord_fixed() +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_blank(),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) + coord_fixed()
+
+
+p4 <- ggplot(data = subset(Embed, signif_origin == "De" & cdr3b != "CASSDAGDTDTQYF"),
+    aes(UMAP_1, UMAP_2)) +
+
+  # Ex 
+  geom_point_rast(
+    
+    color = "#1F77B4",
+    shape = 19,
+    stroke = NA,
+    size = 0.05,
+    alpha = 0.9
+  ) +
+  geom_path(data = maskTable, aes(group = group), linewidth = 0.1, linetype = 2, color = "black") +  coord_fixed(ratio = 1) +  
+  
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_blank(),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) + coord_fixed()
+
+p1_sq <- p1 + theme(aspect.ratio = 1)
+p2_sq <- p2 + theme(aspect.ratio = 1)
+p3_sq <- p3 + theme(aspect.ratio = 1)
+p4_sq <- p4 + theme(aspect.ratio = 1)
+
+
+p <- (p1_sq + p2_sq) / (p3_sq + p4_sq) +
+  plot_layout(widths = c(1, 1), heights = c(1, 1))
+
+p
+
+
+
+```
+
+
+
+```{r}
+
+
+
+td_TCR_signif_data <- subset(td_TCR_data, signif_origin %in% c("Ex", "De"))
+
+
+head(td_TCR_signif_data[, c("signif_origin", "clusters", "treatment")])
+
+
+library(dplyr)
+
+table(td_TCR_signif_data$signif_origin, td_TCR_signif_data$clusters)
+
+
+stat_tb <- td_TCR_signif_data %>%
+  count(treatment, clusters, signif_origin, name = "n") %>%
+  group_by(treatment, signif_origin) %>%
+  mutate(
+    total = sum(n),
+    prop  = n / total
+  ) %>%
+  ungroup()
+
+stat_tb
+
+
+
+library(RColorBrewer)
+
+tempColors = c("white", "grey90", brewer.pal(9, "YlOrRd")[4:9] )
+
+library(scales)
+
+
+fmt_sci <- function(x, digits = 2) {
+  out <- sprintf(paste0("%.", digits - 1, "e"), x)  # 5.7e-05
+  sub("e-0", "e-", out)  #  e-05 -> e-5
+}
+
+head(df_sum)
+
+stat_tb$treatment <- factor(stat_tb$treatment, levels = c("post", "pre"))
+
+stat_tb <- subset(stat_tb, (treatment == "pre" & signif_origin == "De") | (treatment == "post" & signif_origin == "Ex") )
+
+
+p_Tcell <- ggplot(stat_tb, aes(x = treatment, y = clusters, fill = prop)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(prop, 2)),
+            size = 2, color = "black") +
+  scale_fill_gradientn(colours = tempColors[1:6],
+                      #  trans = "log10",
+                       na.value = "white") +
+facet_wrap(~ signif_origin, scales = "free", ncol = 1) +
+  labs(x = "Model", y = "Dataset", fill = "Mean signif_ratio") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size = 6, color = "black"),
+    axis.text.y = element_text(size = 6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 7)
+  )
+
+
+p_Tcell
+
+```
+
+
+
