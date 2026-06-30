@@ -1,0 +1,153 @@
+
+
+```{r}
+
+rm(list=ls())
+library(Seurat)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+library(aplot)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/Fig/Fig1_TCR/")
+
+```
+
+
+```{r}
+
+td_TCR <- qread("/home/xumeng/TCR_Dynamic/ICB_T/TCR_analysis_2-1/td_TCR.qs", nthreads = 10)
+
+```
+
+
+## Fig. 2d
+
+```{r}
+
+head(td_TCR)
+
+td_TCR$sid_clusters <- paste0(td_TCR$sample, "@", td_TCR$clusters)
+
+source("/soft/sim/R_package/ArchTCR/R/utilities.R")
+
+td_TCR$TCR_size <- NULL 
+
+td_TCR <- clonosize(sce = td_TCR, sample = "sid_clusters", tcr_call = "cdr3b")
+
+td_TCR <- clonosize_rank(sce = td_TCR, clonosize = "clonotype_size")
+
+source("/soft/sim/R_package/ArchTCR/R/clonosize_umap.R")
+
+td_TCR$treatment <- factor(td_TCR$treatment, levels = c("pre", "post"))
+
+all_data <- subset(td_TCR, response != "no_data")$clonotype_size
+all_data <- subset(td_TCR)$clonotype_size
+global_min <- min(all_data, na.rm = TRUE)
+global_max <- max(all_data, na.rm = TRUE)
+
+color.code= c("grey80","#F1DF91", "#FBAD46", "#F36E21", "#C62832", "#8A1739", "#4B0E3D")
+
+
+p1 <- FeaturePlot(subset(td_TCR, treatment == "pre" & cdr3b != "CASSDAGDTDTQYF"), features = "clonotype_size", slot = "data",  raster=TRUE,  order=TRUE) +
+    scale_color_gradientn(trans = "log2", colors = color.code, limits = c(global_min, global_max)) +
+    theme(legend.position = "right",
+    axis.text = element_blank(),    
+        axis.title = element_blank(),   
+        axis.ticks = element_blank(),   
+        axis.line = element_blank(),    
+        panel.background = element_blank(),  
+        panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank())  
+
+
+p2 <- FeaturePlot(subset(td_TCR, treatment == "post" & cdr3b != "CASSDAGDTDTQYF"), features = "clonotype_size", slot = "data",  raster=TRUE,  order=TRUE) +
+    scale_color_gradientn(trans = "log2", colors = color.code, limits = c(global_min, global_max)) +
+    theme(legend.position = "right",
+    axis.text = element_blank(),    
+        axis.title = element_blank(),   
+        axis.ticks = element_blank(),   
+        axis.line = element_blank(),    
+        panel.background = element_blank(),  
+        panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank())  
+
+
+
+p <- p1 + p2 + plot_layout(ncol = 1)
+
+
+
+```
+
+
+
+
+```{r}
+
+
+clonosize_clusters_treatment <- td_TCR@meta.data[, c( "cdr3b", "clonotype_size", "clusters", "treatment", "TCR_size")]
+
+rownames(clonosize_clusters_treatment) <- NULL
+
+clonosize_clusters_treatment <- subset(clonosize_clusters_treatment, cdr3b != "CASSDAGDTDTQYF")
+
+detailed_stats <- clonosize_clusters_treatment %>%
+  group_by(clusters, treatment) %>%
+  summarise(
+    mean_size = mean(clonotype_size, na.rm = TRUE),
+    median_size = median(clonotype_size, na.rm = TRUE),
+    # sd_size = sd(clonotype_size, na.rm = TRUE),
+    # min_size = min(clonotype_size, na.rm = TRUE),
+    # max_size = max(clonotype_size, na.rm = TRUE),
+    n = n(),
+    .groups = 'drop'
+  )
+
+head(detailed_stats)
+
+library(scales)
+
+colors_use <- c('#fc8d59','#9e9ac8','#F9C40A','#85C7DC','#0A71B6','#5280AC','#c6d1a7','#e31a1c','#f9d3d7','#08306b')
+
+p <- ggplot(detailed_stats, aes(x = treatment, y = mean_size, fill = clusters)) +
+  geom_bar(stat = "identity", alpha = 0.8, position = "fill") +
+  ylab("mean clonosize") +
+  xlab("cell_types") +
+  ggtitle("") +
+#   scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  scale_fill_manual(values = colors_use) +
+  # facet_grid( ~ response, scales = "fixed") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 8),
+    axis.text.y = element_text(size=8, color = "black"),
+    axis.title.y = element_text(size=9, color = "black"),
+    axis.text.x = element_text(size=8, color = "black"),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    # axis.title.x = element_text(size=14, color = "black"),
+    axis.title.x = element_blank(),
+    axis.title = element_text(size = 9),
+    axis.text = element_text(size = 8),
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 9, colour = "black") ,
+    legend.title = element_text(size = 8),
+    legend.text = element_text(size = 7),
+    plot.title = element_text(size = 9, hjust = 0.5)
+  )
+
+
+p
+
+
+```
+

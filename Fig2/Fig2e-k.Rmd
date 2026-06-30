@@ -1,0 +1,1240 @@
+
+```{r}
+
+library(tidyverse)
+library(reshape2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+library(ggvenn)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig2/Fig2d-l/")
+
+mycol <- c("#D62728", "#1F77B4",  "#FF7F0E", "#2CA02C", "#9467BD", "#8C564B", "#E377C2", "#BCBD22", "#17BECF", "#FF9896", "#AEC7E8", "#FFBB78", "#98DF8A",  "#C5B0D5",  "#C49C94",  "#F7B6D2", "#7F7F7F", "#DBDB8D", "#9EDAE5", "#45aab4","#fe7966","#81d0bb","#f9637c","#fbb45c","#038dpost","#FFDE99","#B8C8F5","#8fa2dc","#feaac2","#206491", "gold", "seagreen", "tomato", "#285d7c", "#f1d19e", "#e5807c", "#d7969a", "#eeebd8", "#d97d56", "#eecca9", "#eeeddb", "#494651", "#4b98a9", "#719eb6", "#679bc5", "#d94248", "#ebd66d", "#62985a", "#ecc832", "#e1a34e", "#ac3241", "#f5812d", "#d63833", "#ef5a30")
+
+```
+
+
+```{r}
+
+td_meta <- qread("/home/xumeng/TCR_Dynamic/ICB_T/clusters_analysis_2-1/td_meta.qs")
+
+head(td_meta)
+
+unique(td_meta$pt) %>% unique()
+
+table(td_meta$pt, td_meta$TCR)
+
+td_meta <- td_meta %>%
+  mutate(TCR = case_when(
+    is.na(cdr3b) ~ "no_TCR",
+    TRUE ~ "TCR"
+  ))
+
+td_TCR_meta <- subset(td_meta, TCR == "TCR")
+
+result <- td_TCR_meta %>%
+  group_by(patient, cdr3b, treatment, datasets) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  pivot_wider(
+    names_from = treatment,
+    values_from = count,
+    values_fill = 0
+  )
+
+head(result)
+
+result$pt <- paste0(result$patient, "@", result$datasets)
+
+unique(result$pt) %>% unique()
+
+
+result <- result %>%
+  mutate(
+    status = case_when(
+      pre > 0 & post == 0 ~ "pre-only",
+      pre == 0 & post > 0 ~ "emergent",
+      pre > 0 & post > 0 ~ "pre-existing"
+    )
+  )
+
+qsave(result, "ICB_sc_TCR.qs")
+
+result <- qread("ICB_sc_TCR.qs")
+
+result1 <- td_TCR_meta %>%
+  group_by(pt, cdr3b, treatment, clusters) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  pivot_wider(
+    names_from = treatment,
+    values_from = count,
+    values_fill = 0
+  )
+
+head(result1)
+
+result1 <- result1 %>%
+  mutate(
+    status = case_when(
+      pre > 0 & post == 0 ~ "pre-only",
+      pre == 0 & post > 0 ~ "emergent",
+      pre > 0 & post > 0 ~ "pre-existing"
+    )
+  )
+
+qsave(result1, "ICB_sc_TCR_clusters.qs")
+
+
+
+result1 <- qread("ICB_sc_TCR_clusters.qs")
+
+```
+
+
+
+```{r}
+
+head(result)
+
+data4dis_wide <- result
+
+data4dis_long <- data4dis_wide %>%
+  gather(key = "time", value = "count", pre, post)
+
+head(data4dis_long)
+
+data4dis_long_1 <- subset(data4dis_long, count > 0)
+
+head(data4dis_long_1)
+
+data4dis_long_1$time_status <- paste0(data4dis_long_1$time, "@", data4dis_long_1$status)
+
+data4dis_long_1$sampleid <- paste0(data4dis_long_1$patient, "@", data4dis_long_1$time)
+```
+
+
+## fig. 2h
+
+```{r}
+
+head(data4dis_long_1)
+
+data4dis_long_1$pt <- paste0(data4dis_long_1$patient, "@", data4dis_long_1$datasets)
+
+pat_status <- table(data4dis_long_1$pt, data4dis_long_1$time_status) %>% as.data.frame()
+
+head(pat_status)
+
+group = "time_status"
+
+colnames(pat_status) <- c("patient", group, "count")
+
+pat_status
+
+pat_status <- pat_status %>%
+  mutate(time = str_split(time_status, "@", simplify = TRUE)[, 1])
+
+pat_status$sampleid <- paste0(pat_status$patient, "@", pat_status$time)
+
+pat_status <- pat_status %>%
+  group_by(sampleid) %>%
+  mutate(proportion = count / sum(count))
+
+colnames(pat_status)[2] <- "group"
+
+pat_status <- pat_status %>%
+  mutate(pt = str_split(patient, "@", simplify = TRUE)[, 1])
+
+pat_status <- pat_status %>%
+  mutate(datasets = str_split(patient, "@", simplify = TRUE)[, 2])
+
+pat_status <- pat_status %>%
+  mutate(status = str_split(group, "@", simplify = TRUE)[, 2])
+
+pat_status <- pat_status %>%
+  mutate(status = case_when(
+    status == "emergent" ~ "only",
+    status == "pre-only" ~ "only",
+    TRUE ~ "across"
+  ))
+
+
+head(pat_status)
+
+pat_status$time <- factor(pat_status$time, levels = c("pre", "post"))
+pat_status$status <- factor(pat_status$status, levels = c("only", "across"))
+
+
+pat_status <- pat_status %>%
+  mutate(response = case_when(
+    pt %in% c("su001", "su002", "su003", "su004", "su009", "su012") & datasets == "BCC" ~ "R", # 
+    pt %in% c("su005", "su006", "su007", "su008",  "su010") & datasets == "BCC" ~ "NR",
+
+    pt %in% c("su010","su011") & datasets == "SCC" ~ "R",
+    pt %in% c("su013", "su014") & datasets == "SCC" ~ "NR",
+
+    pt %in% c("P001", "P002",  "P004", "P005", "P016","P017") & datasets == "BC_zhang" ~ "R",
+    pt %in% c("P007", "P010", "P012", "P019") & datasets == "BC_zhang" ~ "NR",
+
+    pt %in% c("P18_HN", "P32_HN") & datasets == "HN" ~ "R",
+    pt %in% c("P24_HN", "P27_HN", "P29_HN") & datasets == "HN" ~ "NR",
+
+
+    pt %in% c("P01", "P02", "P03", "P04", "P06", "P08") & datasets == "ESCC" ~ "R",
+    pt %in% c("P05", "P07", "P09") & datasets == "ESCC" ~ "NR",
+
+
+    pt %in% c("P01", "P04", "P08", "P11", "P12", "P15", "P17", "P18", "P19", "P20", "P22", "P23","P26", "P03", "P05", "P09", "P14", "P24") & datasets == "CRC" ~ "R",
+    pt %in% c("P16","P25") & datasets == "CRC" ~ "NR",
+
+    pt %in% c("P29", "P30", "P33", "P35") & datasets == "Lung" ~ "R",
+
+    pt %in% c("Patient01",   "Patient02",   "Patient03T1", "Patient03T2", "Patient04",   "Patient05",   "Patient07" ,  "Patient09" ,  "Patient11" ,  "Patient12" ,  "Patient16",   "Patient18", "Patient19",   "Patient20",   "Patient23" ,  "Patient30" ,  "Patient42",   "Patient43" ,  "Patient46" ,  "Patient47" ,  "Patient48" ,  "Patient56" ,  "Patient63" ,  "Patient66") & datasets == "BC_Shiao" ~ "R",
+    pt %in% c("Patient06", "Patient10", "Patient15", "Patient17", "Patient26", "Patient39", "Patient45", "Patient52", "Patient53", "Patient57", "Patient64") & datasets == "BC_Shiao" ~ "NR",
+
+    TRUE ~ "no_data"  
+  ))
+
+head(pat_status)
+
+
+p1 <- ggplot(subset(pat_status, response != "no_data"), aes(x = status, y = as.numeric(proportion), color = status)) +
+  geom_boxplot(alpha = 0.3, outliers = F, linewidth = 0.2) + 
+  scale_fill_manual(values = mycol) + 
+# geom_line(aes(group = patient), color = "grey", alpha = 0.8, lwd = 0.4, position = position_dodge(0.5))+  
+# geom_jitter(aes(color = status), size= 0.8)+
+geom_point(position = position_jitterdodge(0.95), alpha = 0.9, size = 1.2, stroke = NA, shape = 19)+
+# scale_color_manual(values = mycol) +  
+scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+facet_grid(time ~ response, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "TCR Ratio",
+    color = "TCR Type"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "top",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(
+    comparisons = list(c("only", "across")), step_increase = 0.08,
+    map_signif_level = F, test = "wilcox.test", test.args=list(alternative = "two.side", paired = F),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p1
+
+```
+
+
+
+## Fig. 2i
+
+```{r}
+
+
+
+p2 <- ggplot(subset(pat_status, response != "no_data"), aes(x = time, y = as.numeric(proportion), color = time)) +
+  geom_boxplot(alpha = 0.3, outliers = F, linewidth = 0.2) + 
+  scale_fill_manual(values = mycol) + 
+# geom_line(aes(group = patient), color = "grey", alpha = 0.8, lwd = 0.4, position = position_dodge(0.5))+  
+# geom_jitter(aes(color = status), size= 0.8)+
+geom_point(position = position_jitterdodge(0.95), alpha = 0.9, size = 1.2, stroke = NA, shape = 19)+
+# scale_color_manual(values = mycol) +  
+scale_color_manual(values = c("#8f8070", "#a54633")) +  
+facet_grid(status ~ response, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "TCR Ratio",
+    # fill = "Metric",
+    color = "TCR Type"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "top",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(
+    comparisons = list(c("pre", "post")), step_increase = 0.08,
+    map_signif_level = F, test = "wilcox.test", test.args=list(alternative = "two.side", paired = F),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p2
+
+```
+
+
+## Fig. 2j
+
+```{r}
+
+
+p3 <- ggplot(subset(pat_status, response != "no_data"), aes(x = response, y = as.numeric(proportion), color = response)) +
+  geom_boxplot(alpha = 0.3, outliers = F, linewidth = 0.2) + 
+  scale_fill_manual(values = mycol) + 
+# geom_line(aes(group = patient), color = "grey", alpha = 0.8, lwd = 0.4, position = position_dodge(0.5))+  
+# geom_jitter(aes(color = status), size= 0.8)+
+geom_point(position = position_jitterdodge(0.95), alpha = 0.9, size = 1.2, stroke = NA, shape = 19)+
+# scale_color_manual(values = mycol) +  
+scale_color_manual(values = c("#98989d", "#856e91")) +  
+facet_grid(status ~ time, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "TCR Ratio",
+    # fill = "Metric",
+    color = "TCR Type"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "top",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(
+    comparisons = list(c("R", "NR")), step_increase = 0.08,
+    map_signif_level = F, test = "wilcox.test", test.args=list(alternative = "two.side", paired = F),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p3
+
+
+```
+
+
+
+
+## Fig. 2k
+
+```{r}
+
+head(data4dis_long_1)
+
+
+data4dis_long_1 <- data4dis_long_1 %>%
+group_by(sampleid) %>%
+mutate(expansion = ifelse(count >= 2*median(count), "ex", "nex")) %>%
+ungroup()
+
+
+data4dis_long_1$patient_time_status <- paste0(data4dis_long_1$pt, "@", data4dis_long_1$time, "@", data4dis_long_1$status)
+
+
+ex_data <- data4dis_long_1 %>%
+  group_by(patient_time_status, expansion, datasets) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(patient_time_status) %>%
+  mutate(proportion = count / sum(count)) %>%
+  ungroup()
+
+
+head(ex_data)
+
+ex_data <- ex_data %>%
+  mutate(patient = str_split(patient_time_status, "@", simplify = TRUE)[, 1])
+
+ex_data <- ex_data %>%
+  mutate(datasets = str_split(patient_time_status, "@", simplify = TRUE)[, 2])
+
+ex_data <- ex_data %>%
+  mutate(time = str_split(patient_time_status, "@", simplify = TRUE)[, 3])
+
+ex_data <- ex_data %>%
+  mutate(status = str_split(patient_time_status, "@", simplify = TRUE)[,4])
+
+ex_data <- ex_data %>%
+  mutate(status = case_when(
+    status == "emergent" ~ "only",
+    status == "pre-only" ~ "only",
+    TRUE ~ "across"
+  ))
+
+
+ex_data <- ex_data %>%
+  mutate(response = case_when(
+    patient %in% c("su001", "su002", "su003", "su004", "su009", "su012") & datasets == "BCC" ~ "R", # 
+    patient %in% c("su005", "su006", "su007", "su008",  "su010") & datasets == "BCC" ~ "NR",
+
+    patient %in% c("su010","su011") & datasets == "SCC" ~ "R",
+    patient %in% c("su013", "su014") & datasets == "SCC" ~ "NR",
+
+    patient %in% c("P001", "P002",  "P004", "P005", "P016","P017") & datasets == "BC_zhang" ~ "R",
+    patient %in% c("P007", "P010", "P012", "P019") & datasets == "BC_zhang" ~ "NR",
+
+    patient %in% c("P18_HN", "P32_HN") & datasets == "HN" ~ "R",
+    patient %in% c("P24_HN", "P27_HN", "P29_HN") & datasets == "HN" ~ "NR",
+
+
+    patient %in% c("P01", "P02", "P03", "P04", "P06", "P08") & datasets == "ESCC" ~ "R",
+    patient %in% c("P05", "P07", "P09") & datasets == "ESCC" ~ "NR",
+
+
+    patient %in% c("P01", "P04", "P08", "P11", "P12", "P15", "P17", "P18", "P19", "P20", "P22", "P23","P26", "P03", "P05", "P09", "P14", "P24") & datasets == "CRC" ~ "R",
+    patient %in% c("P16","P25") & datasets == "CRC" ~ "NR",
+
+    patient %in% c("P29", "P30", "P33", "P35") & datasets == "Lung" ~ "R",
+
+    patient %in% c("Patient01",   "Patient02",   "Patient03T1", "Patient03T2", "Patient04",   "Patient05",   "Patient07" ,  "Patient09" ,  "Patient11" ,  "Patient12" ,  "Patient16",   "Patient18", "Patient19",   "Patient20",   "Patient23" ,  "Patient30" ,  "Patient42",   "Patient43" ,  "Patient46" ,  "Patient47" ,  "Patient48" ,  "Patient56" ,  "Patient63" ,  "Patient66") & datasets == "BC_Shiao" ~ "R",
+    patient %in% c("Patient06", "Patient10", "Patient15", "Patient17", "Patient26", "Patient39", "Patient45", "Patient52", "Patient53", "Patient57", "Patient64") & datasets == "BC_Shiao" ~ "NR",
+
+    TRUE ~ "no_data"  
+  ))
+
+head(pat_status)
+
+head(ex_data)
+
+ex_data$time <- factor(ex_data$time, levels = c("pre", "post"))
+ex_data$status <- factor(ex_data$status, levels = c("only", "across"))
+ex_data$response <- factor(ex_data$response, levels = c("R", "NR", "no_data"))
+
+comp <- list(c("only", "across"))
+
+p1 <- ggplot(subset(ex_data, expansion == "ex" & response != "no_data"), aes(x = status, y = as.numeric(proportion), color = status)) +
+  geom_boxplot(alpha = 0.3, outliers = F, linewidth = 0.2) + 
+  # scale_fill_manual(values = mycol) + 
+scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+# geom_line(aes(group = patient), color = "grey", alpha = 0.8, lwd = 0.4, position = position_dodge(0.5))+  
+# geom_jitter(aes(color = status), size= 0.8)+
+geom_point(position = position_jitterdodge(0.95), alpha = 0.9, size = 1.2, stroke = NA, shape = 19)+
+# scale_color_manual(values = mycol) +  
+facet_grid(time ~ response, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "Ex TCR Ratio",
+    # fill = "Metric",
+    color = "time status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "top",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(
+    comparisons = comp, step_increase = 0.08,
+    map_signif_level = F, test = "wilcox.test", test.args=list(alternative = "two.side", paired = F),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p1
+
+```
+
+
+## Fig. 2f
+
+
+```{r}
+
+sc_long <- result %>%
+  pivot_longer(cols = c(pre, post), 
+               names_to = "time", 
+               values_to = "count")
+
+head(sc_long)
+
+sc_long$sample <- paste0(sc_long$patient, "@", sc_long$datasets, "@", sc_long$time)
+
+sc4div <- sc_long[, c("cdr3b", "count", "sample")]
+
+
+sc4div <- subset(sc4div, count > 0)
+
+sc4div_wide <- sc4div %>%
+  pivot_wider(
+    names_from = sample,       
+    values_from = count,  
+    values_fill = list(count = 0)  
+  ) %>% as.data.frame()
+
+rownames(sc4div_wide) <- sc4div_wide$cdr3b
+
+sc4div_wide$cdr3b <- NULL
+
+sc4div_wide[1:6, 1:6]
+
+library("vegan")
+
+Shannon <- diversity(t(sc4div_wide), index = 'shannon', base = exp(1))
+
+Shannon <- Shannon %>% as.data.frame()
+
+colnames(Shannon) <- "shannon"
+
+head(Shannon)
+
+Shannon$p_status <- rownames(Shannon)
+
+Shannon <- Shannon %>%
+  mutate(patient = str_split(p_status, "@", simplify = TRUE)[, 1])
+
+Shannon <- Shannon %>%
+  mutate(datasets = str_split(p_status, "@", simplify = TRUE)[, 2])
+
+Shannon <- Shannon %>%
+  mutate(time = str_split(p_status, "@", simplify = TRUE)[, 3])
+
+
+Shannon$time <- factor(Shannon$time, levels = c("pre", "post"))
+
+
+library(ggsci)
+
+Shannon <- Shannon %>%
+  mutate(response = case_when(
+    patient %in% c("su001", "su002", "su003", "su004", "su009", "su012") & datasets == "BCC" ~ "R", # 
+    patient %in% c("su005", "su006", "su007", "su008",  "su010") & datasets == "BCC" ~ "NR",
+
+    patient %in% c("su010","su011") & datasets == "SCC" ~ "R",
+    patient %in% c("su013", "su014") & datasets == "SCC" ~ "NR",
+
+    patient %in% c("P001", "P002",  "P004", "P005", "P016","P017") & datasets == "BC_zhang" ~ "R",
+    patient %in% c("P007", "P010", "P012", "P019") & datasets == "BC_zhang" ~ "NR",
+
+    patient %in% c("P18_HN", "P32_HN") & datasets == "HN" ~ "R",
+    patient %in% c("P24_HN", "P27_HN", "P29_HN") & datasets == "HN" ~ "NR",
+
+
+    patient %in% c("P01", "P02", "P03", "P04", "P06", "P08") & datasets == "ESCC" ~ "R",
+    patient %in% c("P05", "P07", "P09") & datasets == "ESCC" ~ "NR",
+
+
+    patient %in% c("P01", "P04", "P08", "P11", "P12", "P15", "P17", "P18", "P19", "P20", "P22", "P23","P26", "P03", "P05", "P09", "P14", "P24") & datasets == "CRC" ~ "R",
+    patient %in% c("P16","P25") & datasets == "CRC" ~ "NR",
+
+    patient %in% c("P29", "P30", "P33", "P35") & datasets == "Lung" ~ "R",
+
+    patient %in% c("Patient01",   "Patient02",   "Patient03T1", "Patient03T2", "Patient04",   "Patient05",   "Patient07" ,  "Patient09" ,  "Patient11" ,  "Patient12" ,  "Patient16",   "Patient18", "Patient19",   "Patient20",   "Patient23" ,  "Patient30" ,  "Patient42",   "Patient43" ,  "Patient46" ,  "Patient47" ,  "Patient48" ,  "Patient56" ,  "Patient63" ,  "Patient66") & datasets == "BC_Shiao" ~ "R",
+    patient %in% c("Patient06", "Patient10", "Patient15", "Patient17", "Patient26", "Patient39", "Patient45", "Patient52", "Patient53", "Patient57", "Patient64") & datasets == "BC_Shiao" ~ "NR",
+
+    TRUE ~ "no_data"  
+  ))
+
+
+
+p2 <- ggplot(subset(Shannon, response != "no_data"), aes(x = time, y = as.numeric(shannon), color = time)) +
+  geom_boxplot(alpha = 0.3, outliers = FALSE, linewidth = 0.2) + 
+geom_point( aes( color = time), position = position_jitterdodge(0.95), alpha = 0.8, size = 1.2, stroke = NA, shape = 19)+ 
+scale_color_manual(values = c("#8f8070", "#a54633")) +  
+# facet_wrap(~ response, scales = "fixed") +
+facet_grid( ~ response, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "Shannon Index",
+    # fill = "Metric",
+    color = "status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(
+    comparisons = list(c("pre", "post")), step_increase = 0.08,
+    map_signif_level = F, test = "wilcox.test", test.args=list(alternative = "two.side", paired = T),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p2
+
+
+
+
+```
+
+
+
+## Extended Data Fig. 1f
+
+
+```{r}
+
+sc_long <- result %>%
+  pivot_longer(cols = c(pre, post), 
+               names_to = "time", 
+               values_to = "count")
+
+head(sc_long)
+
+
+sc_long$p_status <- paste0(sc_long$patient, "@", sc_long$datasets, "@", sc_long$time, "@", sc_long$status)
+
+sc_long$sample <- paste0(sc_long$patient, "@", sc_long$datasets, "@", sc_long$time)
+
+sc4div <- sc_long[, c("cdr3b", "count", "p_status")]
+# sc4div <- sc_long[, c("cdr3b", "count", "sample")]
+
+sc4div <- subset(sc4div, count > 0)
+
+sc4div_wide <- sc4div %>%
+  pivot_wider(
+    names_from = p_status,       
+    # names_from = sample,       
+    values_from = count,  
+    values_fill = list(count = 0)  
+  ) %>% as.data.frame()
+
+rownames(sc4div_wide) <- sc4div_wide$cdr3b
+
+sc4div_wide$cdr3b <- NULL
+
+sc4div_wide[1:6, 1:6]
+
+library("vegan")
+
+Shannon <- diversity(t(sc4div_wide), index = 'shannon', base = exp(1))
+
+Shannon <- Shannon %>% as.data.frame()
+
+colnames(Shannon) <- "shannon"
+
+head(Shannon)
+
+Shannon$p_status <- rownames(Shannon)
+
+Shannon <- Shannon %>%
+  mutate(patient = str_split(p_status, "@", simplify = TRUE)[, 1])
+
+Shannon <- Shannon %>%
+  mutate(datasets = str_split(p_status, "@", simplify = TRUE)[, 2])
+
+Shannon <- Shannon %>%
+  mutate(time = str_split(p_status, "@", simplify = TRUE)[, 3])
+
+Shannon <- Shannon %>%
+  mutate(status = str_split(p_status, "@", simplify = TRUE)[, 4])
+
+Shannon <- Shannon %>%
+  mutate(status = case_when(
+    status == "emergent" ~ "only",
+    status == "pre-only" ~ "only",
+    TRUE ~ "across"
+  ))
+
+head(Shannon)
+
+Shannon$time <- factor(Shannon$time, levels = c("pre", "post"))
+Shannon$status <- factor(Shannon$status, levels = c("only", "across"))
+
+library(ggsci)
+
+Shannon <- Shannon %>%
+  mutate(response = case_when(
+    patient %in% c("su001", "su002", "su003", "su004", "su009", "su012") & datasets == "BCC" ~ "R", # 
+    patient %in% c("su005", "su006", "su007", "su008",  "su010") & datasets == "BCC" ~ "NR",
+
+    patient %in% c("su010","su011") & datasets == "SCC" ~ "R",
+    patient %in% c("su013", "su014") & datasets == "SCC" ~ "NR",
+
+    patient %in% c("P001", "P002",  "P004", "P005", "P016","P017") & datasets == "BC_zhang" ~ "R",
+    patient %in% c("P007", "P010", "P012", "P019") & datasets == "BC_zhang" ~ "NR",
+
+    patient %in% c("P18_HN", "P32_HN") & datasets == "HN" ~ "R",
+    patient %in% c("P24_HN", "P27_HN", "P29_HN") & datasets == "HN" ~ "NR",
+
+
+    patient %in% c("P01", "P02", "P03", "P04", "P06", "P08") & datasets == "ESCC" ~ "R",
+    patient %in% c("P05", "P07", "P09") & datasets == "ESCC" ~ "NR",
+
+
+    patient %in% c("P01", "P04", "P08", "P11", "P12", "P15", "P17", "P18", "P19", "P20", "P22", "P23","P26", "P03", "P05", "P09", "P14", "P24") & datasets == "CRC" ~ "R",
+    patient %in% c("P16","P25") & datasets == "CRC" ~ "NR",
+
+    patient %in% c("P29", "P30", "P33", "P35") & datasets == "Lung" ~ "R",
+
+    patient %in% c("Patient01",   "Patient02",   "Patient03T1", "Patient03T2", "Patient04",   "Patient05",   "Patient07" ,  "Patient09" ,  "Patient11" ,  "Patient12" ,  "Patient16",   "Patient18", "Patient19",   "Patient20",   "Patient23" ,  "Patient30" ,  "Patient42",   "Patient43" ,  "Patient46" ,  "Patient47" ,  "Patient48" ,  "Patient56" ,  "Patient63" ,  "Patient66") & datasets == "BC_Shiao" ~ "R",
+    patient %in% c("Patient06", "Patient10", "Patient15", "Patient17", "Patient26", "Patient39", "Patient45", "Patient52", "Patient53", "Patient57", "Patient64") & datasets == "BC_Shiao" ~ "NR",
+
+    TRUE ~ "no_data"  
+  ))
+
+
+
+p1 <- ggplot(subset(Shannon, response != "no_data"), aes(x = time, y = as.numeric(shannon), color = time)) +
+  geom_boxplot(alpha = 0.3, outliers = FALSE, linewidth = 0.2) + 
+geom_point( aes( color = time), position = position_jitterdodge(0.95), alpha = 0.8, size = 1.2, stroke = NA, shape = 19)+ 
+scale_color_manual(values = c("#8f8070", "#a54633")) +  
+# facet_wrap(~ response, scales = "fixed") +
+facet_grid(status ~ response, scales = "fixed") +
+  labs(
+    title = "wilcox-test",
+    x = "",
+    y = "Shannon Index",
+    # fill = "Metric",
+    color = "status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(
+    comparisons = list(c("pre", "post")), step_increase = 0.08,
+    map_signif_level = F, test = "wilcox.test", test.args=list(alternative = "two.side", paired = T),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+p1
+
+```
+
+
+## Extended Data Fig. 1g
+
+```{r}
+
+
+
+p1 <- ggplot(subset(Shannon, response != "no_data"), aes(x = status, y = as.numeric(shannon), color = status)) +
+  geom_boxplot(alpha = 0.3, outliers = FALSE, linewidth = 0.2) + 
+geom_point( aes( color = status), position = position_jitterdodge(0.95), alpha = 0.8, size = 1.2, stroke = NA, shape = 19)+ 
+scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+facet_grid(time ~ response, scales = "free_y") +
+# facet_wrap(~ response, scales = "fixed") +
+  labs(
+    title = "wilcox-test",
+    x = "",
+    y = "Shannon Index",
+    # fill = "Metric",
+    color = "status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(
+    comparisons = list(c("only", "across")), step_increase = 0.08,
+    map_signif_level = F, test = "wilcox.test", test.args=list(alternative = "two.side", paired = F),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p1
+
+
+
+
+```
+
+
+
+
+
+## Fig. 2e
+
+
+```{r}
+
+sc_long <- result %>%
+  pivot_longer(cols = c(pre, post), 
+               names_to = "time", 
+               values_to = "count")
+
+head(sc_long)
+
+sc_long$sample <- paste0(sc_long$patient, "@", sc_long$datasets, "@", sc_long$time)
+
+sc4div <- sc_long[, c("cdr3b", "count", "sample")]
+
+
+sc4div <- subset(sc4div, count > 0)
+
+sc4div_wide <- sc4div %>%
+  pivot_wider(
+    names_from = sample,       
+    values_from = count,  
+    values_fill = list(count = 0)  
+  ) %>% as.data.frame()
+
+rownames(sc4div_wide) <- sc4div_wide$cdr3b
+
+sc4div_wide$cdr3b <- NULL
+
+index_df_1 <- calculate_clonality(sc4div_wide)
+
+index_df_1
+  
+colnames(index_df_1) <- c("p_status", "clonality")
+
+index_df_1 <- index_df_1 %>%
+  mutate(patient = str_split(p_status, "@", simplify = TRUE)[, 1])
+
+index_df_1 <- index_df_1 %>%
+  mutate(datasets = str_split(p_status, "@", simplify = TRUE)[, 2])
+
+index_df_1 <- index_df_1 %>%
+  mutate(time = str_split(p_status, "@", simplify = TRUE)[, 3])
+
+index_df_1$time <- factor(index_df_1$time, levels = c("pre", "post"))
+
+
+index_df_1 <- index_df_1 %>%
+  mutate(response = case_when(
+    patient %in% c("su001", "su002", "su003", "su004", "su009", "su012") & datasets == "BCC" ~ "R", # 
+    patient %in% c("su005", "su006", "su007", "su008",  "su010") & datasets == "BCC" ~ "NR",
+
+    patient %in% c("su010","su011") & datasets == "SCC" ~ "R",
+    patient %in% c("su013", "su014") & datasets == "SCC" ~ "NR",
+
+    patient %in% c("P001", "P002",  "P004", "P005", "P016","P017") & datasets == "BC_zhang" ~ "R",
+    patient %in% c("P007", "P010", "P012", "P019") & datasets == "BC_zhang" ~ "NR",
+
+    patient %in% c("P18_HN", "P32_HN") & datasets == "HN" ~ "R",
+    patient %in% c("P24_HN", "P27_HN", "P29_HN") & datasets == "HN" ~ "NR",
+
+
+    patient %in% c("P01", "P02", "P03", "P04", "P06", "P08") & datasets == "ESCC" ~ "R",
+    patient %in% c("P05", "P07", "P09") & datasets == "ESCC" ~ "NR",
+
+
+    patient %in% c("P01", "P04", "P08", "P11", "P12", "P15", "P17", "P18", "P19", "P20", "P22", "P23","P26", "P03", "P05", "P09", "P14", "P24") & datasets == "CRC" ~ "R",
+    patient %in% c("P16","P25") & datasets == "CRC" ~ "NR",
+
+    patient %in% c("P29", "P30", "P33", "P35") & datasets == "Lung" ~ "R",
+
+    patient %in% c("Patient01",   "Patient02",   "Patient03T1", "Patient03T2", "Patient04",   "Patient05",   "Patient07" ,  "Patient09" ,  "Patient11" ,  "Patient12" ,  "Patient16",   "Patient18", "Patient19",   "Patient20",   "Patient23" ,  "Patient30" ,  "Patient42",   "Patient43" ,  "Patient46" ,  "Patient47" ,  "Patient48" ,  "Patient56" ,  "Patient63" ,  "Patient66") & datasets == "BC_Shiao" ~ "R",
+    patient %in% c("Patient06", "Patient10", "Patient15", "Patient17", "Patient26", "Patient39", "Patient45", "Patient52", "Patient53", "Patient57", "Patient64") & datasets == "BC_Shiao" ~ "NR",
+
+    TRUE ~ "no_data"  
+  ))
+
+
+
+p1 <- ggplot(subset(index_df_1, response != "no_data"), aes(x = time, y = as.numeric(clonality), color = time)) +
+  geom_boxplot(alpha = 0.3, outliers = FALSE, linewidth = 0.2) + 
+geom_point( aes( color = time), position = position_jitterdodge(0.95), alpha = 0.8, size = 1.2, stroke = NA, shape = 19)+ 
+scale_color_manual(values = c("#8f8070", "#a54633")) +  
+# facet_grid(status ~ response, scales = "free_y") +
+facet_wrap(~ response, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "Clonality",
+    # fill = "Metric",
+    color = "status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(
+    comparisons = list(c("pre", "post")), step_increase = 0.08,
+    map_signif_level = F, test = "wilcox.test", test.args=list(alternative = "two.side", paired = T),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+p1
+
+
+
+```
+
+
+
+
+
+## Extended Data Fig. 1e
+
+
+```{r}
+
+
+sc_long <- result %>%
+  pivot_longer(cols = c(pre, post), 
+               names_to = "time", 
+               values_to = "count")
+
+head(sc_long)
+
+
+sc_long$p_status <- paste0(sc_long$patient, "@", sc_long$datasets, "@", sc_long$time, "@", sc_long$status)
+
+sc4div <- sc_long[, c("cdr3b", "count", "p_status")]
+# sc4div <- sc_long[, c("cdr3b", "count", "sample")]
+
+sc4div <- subset(sc4div, count > 0)
+
+sc4div_wide <- sc4div %>%
+  pivot_wider(
+    names_from = p_status,       
+    # names_from = sample,       
+    values_from = count,  
+    values_fill = list(count = 0)  
+  ) %>% as.data.frame()
+
+rownames(sc4div_wide) <- sc4div_wide$cdr3b
+
+sc4div_wide$cdr3b <- NULL
+
+head(sc4div_wide)
+
+source("/soft/sim/R_package/ArchTCR/R/utilities.R")
+
+index_df_1 <- calculate_clonality(sc4div_wide)
+
+index_df_1
+  
+colnames(index_df_1) <- c("p_status", "clonality")
+
+index_df_1 <- index_df_1 %>%
+  mutate(patient = str_split(p_status, "@", simplify = TRUE)[, 1])
+
+index_df_1 <- index_df_1 %>%
+  mutate(datasets = str_split(p_status, "@", simplify = TRUE)[, 2])
+
+index_df_1 <- index_df_1 %>%
+  mutate(time = str_split(p_status, "@", simplify = TRUE)[, 3])
+
+index_df_1 <- index_df_1 %>%
+  mutate(status = str_split(p_status, "@", simplify = TRUE)[, 4])
+
+index_df_1 <- index_df_1 %>%
+  mutate(status = case_when(
+    status == "emergent" ~ "only",
+    status == "pre-only" ~ "only",
+    TRUE ~ "across"
+  ))
+
+head(index_df_1)
+
+index_df_1$time <- factor(index_df_1$time, levels = c("pre", "post"))
+index_df_1$status <- factor(index_df_1$status, levels = c("only", "across"))
+
+index_df_1 <- index_df_1 %>%
+  mutate(response = case_when(
+    patient %in% c("su001", "su002", "su003", "su004", "su009", "su012") & datasets == "BCC" ~ "R", # 
+    patient %in% c("su005", "su006", "su007", "su008",  "su010") & datasets == "BCC" ~ "NR",
+
+    patient %in% c("su010","su011") & datasets == "SCC" ~ "R",
+    patient %in% c("su013", "su014") & datasets == "SCC" ~ "NR",
+
+    patient %in% c("P001", "P002",  "P004", "P005", "P016","P017") & datasets == "BC_zhang" ~ "R",
+    patient %in% c("P007", "P010", "P012", "P019") & datasets == "BC_zhang" ~ "NR",
+
+    patient %in% c("P18_HN", "P32_HN") & datasets == "HN" ~ "R",
+    patient %in% c("P24_HN", "P27_HN", "P29_HN") & datasets == "HN" ~ "NR",
+
+
+    patient %in% c("P01", "P02", "P03", "P04", "P06", "P08") & datasets == "ESCC" ~ "R",
+    patient %in% c("P05", "P07", "P09") & datasets == "ESCC" ~ "NR",
+
+
+    patient %in% c("P01", "P04", "P08", "P11", "P12", "P15", "P17", "P18", "P19", "P20", "P22", "P23","P26", "P03", "P05", "P09", "P14", "P24") & datasets == "CRC" ~ "R",
+    patient %in% c("P16","P25") & datasets == "CRC" ~ "NR",
+
+    patient %in% c("P29", "P30", "P33", "P35") & datasets == "Lung" ~ "R",
+
+    patient %in% c("Patient01",   "Patient02",   "Patient03T1", "Patient03T2", "Patient04",   "Patient05",   "Patient07" ,  "Patient09" ,  "Patient11" ,  "Patient12" ,  "Patient16",   "Patient18", "Patient19",   "Patient20",   "Patient23" ,  "Patient30" ,  "Patient42",   "Patient43" ,  "Patient46" ,  "Patient47" ,  "Patient48" ,  "Patient56" ,  "Patient63" ,  "Patient66") & datasets == "BC_Shiao" ~ "R",
+    patient %in% c("Patient06", "Patient10", "Patient15", "Patient17", "Patient26", "Patient39", "Patient45", "Patient52", "Patient53", "Patient57", "Patient64") & datasets == "BC_Shiao" ~ "NR",
+
+    TRUE ~ "no_data"  
+  ))
+
+
+p1 <- ggplot(subset(index_df_1, response != "no_data"), aes(x = time, y = as.numeric(clonality), color = time)) +
+  geom_boxplot(alpha = 0.3, outliers = FALSE, linewidth = 0.2) + 
+geom_point( aes( color = time), position = position_jitterdodge(0.95), alpha = 0.8, size = 1.2, stroke = NA, shape = 19)+ 
+scale_color_manual(values = c("#8f8070", "#a54633")) +  
+facet_grid(status ~ response, scales = "free_y") +
+# facet_wrap(~ response, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "Clonality",
+    # fill = "Metric",
+    color = "status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(
+    comparisons = list(c("pre", "post")), step_increase = 0.08,
+    map_signif_level = F, test = "wilcox.test", test.args=list(alternative = "two.side", paired = T),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p1
+
+```
+
+
+## Extended Data Fig. 1h
+
+
+```{r}
+
+p1 <- ggplot(subset(index_df_1, response != "no_data"), aes(x = status, y = as.numeric(clonality), color = status)) +
+  geom_boxplot(alpha = 0.3, outliers = FALSE, linewidth = 0.2) + 
+geom_point( aes( color = status), position = position_jitterdodge(0.95), alpha = 0.8, size = 1.2, stroke = NA, shape = 19)+ 
+scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+facet_grid(time ~ response, scales = "free_y") +
+# facet_wrap(~ response, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "Clonality",
+    # fill = "Metric",
+    color = "status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(
+    comparisons = list(c("only", "across")), step_increase = 0.08,
+    map_signif_level = F, test = "wilcox.test", test.args=list(alternative = "two.side", paired = F),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p1
+
+
+```
+
+
+
+## datasets level
+
+
+## Extended Data Fig. 1j,k
+
+```{r}
+
+
+
+summary_dat <- pat_status %>%  
+# group_by(time, status) %>%  
+group_by(datasets, time, status) %>%  
+summarise(    Mean = mean(proportion),    
+SE = sd(proportion)/sqrt(n())  )
+
+# head(summary_dat)
+
+p <- ggplot() +  
+geom_bar(data = pat_status, aes(x = status, y = as.numeric(proportion), color = status), stat = "summary", fun = "mean", fill = "white", linewidth = 0.2, width = 0.7 ) +  
+geom_point(data = pat_status, aes(x = status, y = as.numeric(proportion), color = status), position = position_jitterdodge(0.95), alpha = 0.7, size = 1.2, stroke = NA, shape = 19)+ 
+geom_errorbar(data = summary_dat, aes(x = status, ymin = Mean - SE, ymax = Mean + SE), width = 0.25, size = 0.2, color = "black") +
+# stat_summary(data = pat_status, aes(color = status), geom = "errorbar", width = 0.4, size = 1, fun.min = summary_min(), fun.max = summary_max ) +  
+scale_y_continuous(expand = c(0, 0), limits = c(0, 1.1)) +  
+scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+facet_grid(time ~ datasets, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "TCR Ratio",
+    # fill = "Metric",
+    color = "time status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "top",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(data = pat_status, aes(x = status, y = as.numeric(proportion)),
+    comparisons = list(c("only", "across")), step_increase = 0.08,
+    map_signif_level = T, test = "wilcox.test", test.args=list(alternative = "two.side", paired = FALSE),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+p
+
+ex_data_1 <- subset(ex_data, expansion == "ex")
+
+head(ex_data_1)
+
+
+summary_dat <- ex_data_1 %>%  
+# group_by(time, status) %>%  
+group_by(datasets, time, status) %>%  
+summarise(    Mean = mean(proportion),    
+SE = sd(proportion)/sqrt(n())  )
+
+# head(summary_dat)
+
+
+p <- ggplot() +  
+geom_bar(data = ex_data_1, aes(x = status, y = as.numeric(proportion), color = status), stat = "summary", fun = "mean", fill = "white", linewidth = 0.2, width = 0.7 ) +  
+geom_point(data = ex_data_1, aes(x = status, y = as.numeric(proportion), color = status), position = position_jitterdodge(0.95), alpha = 0.7, size = 1.2, stroke = NA, shape = 19)+ 
+geom_errorbar(data = summary_dat, aes(x = status, ymin = Mean - SE, ymax = Mean + SE), width = 0.25, size = 0.2, color = "black") +
+# stat_summary(data = pat_status, aes(color = status), geom = "errorbar", width = 0.4, size = 1, fun.min = summary_min(), fun.max = summary_max ) +  
+scale_y_continuous(expand = c(0, 0), limits = c(0, 1.1)) +  
+scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+facet_grid(time ~ datasets, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "TCR Ratio",
+    # fill = "Metric",
+    color = "time status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "top",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(data = ex_data_1, aes(x = status, y = as.numeric(proportion)),
+    comparisons = list(c("only", "across")), step_increase = 0.08,
+    map_signif_level = T, test = "wilcox.test", test.args=list(alternative = "two.side", paired = FALSE),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+p
+
+
+
+```
+
+
+

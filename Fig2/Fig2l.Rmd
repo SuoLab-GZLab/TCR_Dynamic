@@ -1,0 +1,479 @@
+
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+library(aplot)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig2/Fig2d-l/")
+
+```
+
+
+```{r}
+
+td_meta <- qread("/home/xumeng/TCR_Dynamic/ICB_T/clusters_analysis_2-1/td_meta.qs")
+
+head(td_meta)
+
+td_meta <- td_meta %>%
+  mutate(TCR = case_when(
+    is.na(cdr3b) ~ "no_TCR",
+    TRUE ~ "TCR"
+  ))
+
+td_TCR_meta <- subset(td_meta, TCR == "TCR")
+
+result1 <- td_TCR_meta %>%
+  group_by(pt, cdr3b, treatment, clusters) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  pivot_wider(
+    names_from = treatment,
+    values_from = count,
+    values_fill = 0
+  )
+
+head(result1)
+
+result1 <- result1 %>%
+  mutate(
+    status = case_when(
+      pre > 0 & post == 0 ~ "pre-only",
+      pre == 0 & post > 0 ~ "emergent",
+      pre > 0 & post > 0 ~ "pre-existing"
+    )
+  )
+
+qsave(result1, "ICB_sc_TCR_clusters.qs")
+
+
+result1 <- qread("ICB_sc_TCR_clusters.qs")
+
+```
+
+
+
+## cluster level diversity and clonality
+
+
+```{r}
+
+head(result1)
+
+data4dis_wide <- result1
+
+data4dis_long <- data4dis_wide %>%
+  gather(key = "time", value = "count", pre, post)
+
+head(data4dis_long)
+
+data4dis_long_1 <- subset(data4dis_long, count > 0)
+
+head(data4dis_long_1)
+
+data4dis_long_1$time_status <- paste0(data4dis_long_1$time, "@", data4dis_long_1$status)
+
+data4dis_long_1$sampleid <- paste0(data4dis_long_1$pt, "@", data4dis_long_1$time)
+
+```
+
+
+## fig. 2l
+
+
+```{r}
+
+data4dis_long_1$time_status <- paste0(data4dis_long_1$time, "@" , data4dis_long_1$status)
+
+head(data4dis_long_1)
+
+data4dis_long_1$pt_clusters <- paste0(data4dis_long_1$pt, "@", data4dis_long_1$clusters)
+
+pat_status <- table(data4dis_long_1$pt_clusters, data4dis_long_1$time_status) %>% as.data.frame()
+
+head(pat_status)
+
+group = "time_status"
+
+colnames(pat_status) <- c("patient", group, "count")
+
+head(pat_status)
+
+pat_status <- pat_status %>%
+  mutate(time = str_split(time_status, "@", simplify = TRUE)[, 1])
+
+pat_status$sampleid <- paste0(pat_status$patient, "@", pat_status$time)
+
+
+pat_status <- pat_status %>%
+  group_by(sampleid) %>%
+  mutate(proportion = count / sum(count))
+
+colnames(pat_status)[2] <- "group"
+
+pat_status <- pat_status %>%
+  mutate(clusters = str_split(patient, "@", simplify = TRUE)[, 3])
+
+
+pat_status <- pat_status %>%
+  mutate(status = str_split(group, "@", simplify = TRUE)[, 2])
+
+pat_status <- pat_status %>%
+  mutate(status = case_when(
+    status == "emergent" ~ "only",
+    status == "pre-only" ~ "only",
+    TRUE ~ "across"
+  ))
+
+pat_status$pt <- pat_status$patient
+
+pat_status <- pat_status %>%
+  mutate(patient = str_split(pt, "@", simplify = TRUE)[, 1])
+
+pat_status <- pat_status %>%
+  mutate(datasets = str_split(pt, "@", simplify = TRUE)[, 2])
+
+
+pat_status <- pat_status %>%
+  mutate(response = case_when(
+    patient %in% c("su001", "su002", "su003", "su004", "su009", "su012") & datasets == "BCC" ~ "R", # 
+    patient %in% c("su005", "su006", "su007", "su008",  "su010") & datasets == "BCC" ~ "NR",
+
+    patient %in% c("su010","su011") & datasets == "SCC" ~ "R",
+    patient %in% c("su013", "su014") & datasets == "SCC" ~ "NR",
+
+    patient %in% c("P001", "P002",  "P004", "P005", "P016","P017") & datasets == "BC_zhang" ~ "R",
+    patient %in% c("P007", "P010", "P012", "P019") & datasets == "BC_zhang" ~ "NR",
+
+    patient %in% c("P18_HN", "P32_HN") & datasets == "HN" ~ "R",
+    patient %in% c("P24_HN", "P27_HN", "P29_HN") & datasets == "HN" ~ "NR",
+
+
+    patient %in% c("P01", "P02", "P03", "P04", "P06", "P08") & datasets == "ESCC" ~ "R",
+    patient %in% c("P05", "P07", "P09") & datasets == "ESCC" ~ "NR",
+
+
+    patient %in% c("P01", "P04", "P08", "P11", "P12", "P15", "P17", "P18", "P19", "P20", "P22", "P23","P26", "P03", "P05", "P09", "P14", "P24") & datasets == "CRC" ~ "R",
+    patient %in% c("P16","P25") & datasets == "CRC" ~ "NR",
+
+    patient %in% c("P29", "P30", "P33", "P35") & datasets == "Lung" ~ "R",
+
+    patient %in% c("Patient01",   "Patient02",   "Patient03T1", "Patient03T2", "Patient04",   "Patient05",   "Patient07" ,  "Patient09" ,  "Patient11" ,  "Patient12" ,  "Patient16",   "Patient18", "Patient19",   "Patient20",   "Patient23" ,  "Patient30" ,  "Patient42",   "Patient43" ,  "Patient46" ,  "Patient47" ,  "Patient48" ,  "Patient56" ,  "Patient63" ,  "Patient66") & datasets == "BC_Shiao" ~ "R",
+    patient %in% c("Patient06", "Patient10", "Patient15", "Patient17", "Patient26", "Patient39", "Patient45", "Patient52", "Patient53", "Patient57", "Patient64") & datasets == "BC_Shiao" ~ "NR",
+
+    TRUE ~ "no_data"  
+  ))
+
+
+head(pat_status)
+
+pat_status$time <- factor(pat_status$time, levels = c("pre", "post"))
+pat_status$status <- factor(pat_status$status, levels = c("only", "across"))
+
+head(pat_status)
+
+
+summary_dat <- pat_status %>%  
+group_by(clusters, time, status) %>%  
+summarise(Mean = mean(proportion),    
+          SE = sd(proportion)/sqrt(n())  )
+
+summary_dat <- pat_status %>%  
+  group_by(clusters, time, status) %>%  
+  summarise(
+    n = n(),  
+    Mean = mean(proportion, na.rm = TRUE),  
+    SE = ifelse(n > 1, sd(proportion, na.rm = TRUE)/sqrt(n), NA)  
+  )
+
+
+summary_dat <- pat_status %>%  
+  group_by(clusters, response, time, status) %>%  
+  summarise(
+    n = n(),  
+    Mean = mean(proportion, na.rm = TRUE),  
+    SE = ifelse(n > 1, sd(proportion, na.rm = TRUE)/sqrt(n), NA)  
+  )
+
+head(summary_dat)
+
+pat_status$clusters <- factor(pat_status$clusters, c("T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"))
+
+summary_dat <- pat_status %>%  
+  group_by(clusters, time, status) %>%  
+  summarise(
+    n = n(),  
+    Mean = mean(proportion, na.rm = TRUE),  
+    SE = ifelse(n > 1, sd(proportion, na.rm = TRUE)/sqrt(n), NA)  
+  )
+
+library(ggsignif)
+
+p <- ggplot() +  
+geom_bar(data = pat_status, aes(x = status, y = as.numeric(proportion), color = status), stat = "summary", fun = "mean", fill = "white", linewidth = 0.2, width = 0.7 ) +  
+geom_point(data = pat_status, aes(x = status, y = as.numeric(proportion), color = status), position = position_jitterdodge(0.95), alpha = 0.4, size = 0.8, stroke = NA, shape = 19)+ 
+geom_errorbar(data = summary_dat, aes(x = status, ymin = Mean - SE, ymax = Mean + SE), width = 0.25, size = 0.2, color = "black") +
+# stat_summary(data = pat_status, aes(color = status), geom = "errorbar", width = 0.4, size = 1, fun.min = summary_min(), fun.max = summary_max ) +  
+scale_y_continuous(expand = c(0, 0), limits = c(0, 1.1)) +  
+scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+facet_grid(time ~ clusters, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "TCR Ratio",
+    # fill = "Metric",
+    color = "time status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "top",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(data = pat_status, aes(x = status, y = as.numeric(proportion)),
+    comparisons = list(c("only", "across")), step_increase = 0.08,
+    map_signif_level = F, test = "wilcox.test", test.args=list(alternative = "two.side", paired = FALSE),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p
+
+
+comparisons <- list(c("only", "across"))
+
+library(purrr)
+
+head(pat_status)
+
+
+pval_df <- pat_status %>%
+  group_by(time, clusters) %>%
+  group_modify(~ {
+    map_dfr(comparisons, function(comp) {
+      group1 <- comp[1]
+      group2 <- comp[2]
+      data1 <- .x %>% filter(status == group1) %>% pull(proportion)
+      data2 <- .x %>% filter(status == group2) %>% pull(proportion)
+
+      test_res <- wilcox.test(data1, data2, alternative = "two.sided", paired = FALSE)
+
+      tibble(
+        time = unique(.x$time),
+        clusters = unique(.x$clusters),
+        group1 = group1,
+        group2 = group2,
+        p.value = test_res$p.value,
+        statistic = test_res$statistic
+      )
+    })
+  }) %>%
+  ungroup()
+
+pval_df <- pval_df %>%
+  group_by(time) %>%
+  mutate(p.adj = p.adjust(p.value, method = "BH")) %>%
+  ungroup()
+
+pval_df
+
+
+
+```
+
+
+## Extended Data Fig. 1i
+
+
+```{r}
+
+head(data4dis_long_1)
+
+
+data4dis_long_1 <- data4dis_long_1 %>%
+  group_by(pt_clusters, time) %>%
+  mutate(expansion = ifelse(count >= 1.5*median(count), "ex", "nex")) %>%
+  ungroup()
+
+
+data4dis_long_1$patient_time_status <- paste0(data4dis_long_1$pt, "@", data4dis_long_1$time, "@", data4dis_long_1$status)
+
+ex_data <- data4dis_long_1 %>%
+  group_by(patient_time_status, expansion, clusters) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(patient_time_status) %>%
+  mutate(proportion = count / sum(count)) %>%
+  ungroup()
+
+
+head(ex_data)
+
+ex_data <- ex_data %>%
+  mutate(patient = str_split(patient_time_status, "@", simplify = TRUE)[, 1])
+
+ex_data <- ex_data %>%
+  mutate(datasets = str_split(patient_time_status, "@", simplify = TRUE)[, 2])
+
+ex_data <- ex_data %>%
+  mutate(time = str_split(patient_time_status, "@", simplify = TRUE)[, 3])
+
+ex_data <- ex_data %>%
+  mutate(status = str_split(patient_time_status, "@", simplify = TRUE)[,4])
+
+ex_data <- ex_data %>%
+  mutate(status = case_when(
+    status == "emergent" ~ "only",
+    status == "pre-only" ~ "only",
+    TRUE ~ "across"
+  ))
+
+
+ex_data <- ex_data %>%
+  mutate(response = case_when(
+    patient %in% c("su001", "su002", "su003", "su004", "su009", "su012") & datasets == "BCC" ~ "R", # 
+    patient %in% c("su005", "su006", "su007", "su008",  "su010") & datasets == "BCC" ~ "NR",
+
+    patient %in% c("su010","su011") & datasets == "SCC" ~ "R",
+    patient %in% c("su013", "su014") & datasets == "SCC" ~ "NR",
+
+    patient %in% c("P001", "P002",  "P004", "P005", "P016","P017") & datasets == "BC_zhang" ~ "R",
+    patient %in% c("P007", "P010", "P012", "P019") & datasets == "BC_zhang" ~ "NR",
+
+    patient %in% c("P18_HN", "P32_HN") & datasets == "HN" ~ "R",
+    patient %in% c("P24_HN", "P27_HN", "P29_HN") & datasets == "HN" ~ "NR",
+
+
+    patient %in% c("P01", "P02", "P03", "P04", "P06", "P08") & datasets == "ESCC" ~ "R",
+    patient %in% c("P05", "P07", "P09") & datasets == "ESCC" ~ "NR",
+
+
+    patient %in% c("P01", "P04", "P08", "P11", "P12", "P15", "P17", "P18", "P19", "P20", "P22", "P23","P26", "P03", "P05", "P09", "P14", "P24") & datasets == "CRC" ~ "R",
+    patient %in% c("P16","P25") & datasets == "CRC" ~ "NR",
+
+    patient %in% c("P29", "P30", "P33", "P35") & datasets == "Lung" ~ "R",
+
+    patient %in% c("Patient01",   "Patient02",   "Patient03T1", "Patient03T2", "Patient04",   "Patient05",   "Patient07" ,  "Patient09" ,  "Patient11" ,  "Patient12" ,  "Patient16",   "Patient18", "Patient19",   "Patient20",   "Patient23" ,  "Patient30" ,  "Patient42",   "Patient43" ,  "Patient46" ,  "Patient47" ,  "Patient48" ,  "Patient56" ,  "Patient63" ,  "Patient66") & datasets == "BC_Shiao" ~ "R",
+    patient %in% c("Patient06", "Patient10", "Patient15", "Patient17", "Patient26", "Patient39", "Patient45", "Patient52", "Patient53", "Patient57", "Patient64") & datasets == "BC_Shiao" ~ "NR",
+
+    TRUE ~ "no_data"  
+  ))
+
+
+head(ex_data)
+
+ex_data$time <- factor(ex_data$time, levels = c("pre", "post"))
+ex_data$status <- factor(ex_data$status, levels = c("only", "across"))
+
+
+ex_data_1 <- subset(ex_data, expansion == "ex")
+
+
+
+
+head(ex_data_1)
+
+
+summary_dat <- ex_data_1 %>%  
+# group_by(time, status) %>%  
+group_by(clusters, time, status) %>%  
+summarise(    Mean = mean(proportion),    
+SE = sd(proportion)/sqrt(n())  )
+
+# head(summary_dat)
+
+
+p <- ggplot() +  
+geom_bar(data = ex_data_1, aes(x = status, y = as.numeric(proportion), color = status), stat = "summary", fun = "mean", fill = "white", linewidth = 0.2, width = 0.7 ) +  
+geom_point(data = ex_data_1, aes(x = status, y = as.numeric(proportion), color = status), position = position_jitterdodge(0.95), alpha = 0.4, size = 1.2, stroke = NA, shape = 19)+ 
+geom_errorbar(data = summary_dat, aes(x = status, ymin = Mean - SE, ymax = Mean + SE), width = 0.25, size = 0.2, color = "black") +
+# stat_summary(data = pat_status, aes(color = status), geom = "errorbar", width = 0.4, size = 1, fun.min = summary_min(), fun.max = summary_max ) +  
+scale_y_continuous(expand = c(0, 0), limits = c(0, 1.1)) +  
+scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+facet_grid(time ~ clusters, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "Ex TCR Ratio",
+    # fill = "Metric",
+    color = "time status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "top",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(data = ex_data_1, aes(x = status, y = as.numeric(proportion)),
+    comparisons = list(c("only", "across")), step_increase = 0.08,
+    map_signif_level = T, test = "wilcox.test", test.args=list(alternative = "two.side", paired = FALSE),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+p
+
+
+
+pval_df <- ex_data_1 %>%
+  group_by(time, clusters) %>%
+  group_modify(~ {
+    map_dfr(comparisons, function(comp) {
+      group1 <- comp[1]
+      group2 <- comp[2]
+      data1 <- .x %>% filter(status == group1) %>% pull(proportion)
+      data2 <- .x %>% filter(status == group2) %>% pull(proportion)
+
+      test_res <- wilcox.test(data1, data2, alternative = "two.sided", paired = FALSE)
+
+      tibble(
+        time = unique(.x$time),
+        clusters = unique(.x$clusters),
+        group1 = group1,
+        group2 = group2,
+        p.value = test_res$p.value,
+        statistic = test_res$statistic
+      )
+    })
+  }) %>%
+  ungroup()
+
+pval_df <- pval_df %>%
+  group_by(time) %>%
+  mutate(p.adj = p.adjust(p.value, method = "BH")) %>%
+  ungroup()
+
+pval_df
+
+
+
+```
+
+
+
