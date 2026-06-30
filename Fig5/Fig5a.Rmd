@@ -1,0 +1,279 @@
+
+
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+library(ggsignif)
+library(ggsci)
+library(patchwork)
+library(qs)
+
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig5/")
+
+mycol <- c("#D62728", "#1F77B4",  "#FF7F0E", "#2CA02C", "#9467BD", "#8C564B", "#E377C2", "#BCBD22", "#17BECF", "#FF9896", "#AEC7E8", "#FFBB78", "#98DF8A",  "#C5B0D5",  "#C49C94",  "#F7B6D2", "#7F7F7F", "#DBDB8D", "#9EDAE5", "#45aab4","#fe7966","#81d0bb","#f9637c","#fbb45c","#038db2","#FFDE99","#B8C8F5","#8fa2dc","#feaac2","#206491", "gold", "seagreen", "tomato", "#285d7c", "#f1d19e", "#e5807c", "#d7969a", "#eeebd8", "#d97d56", "#eecca9", "#eeeddb", "#494651", "#4b98a9", "#719eb6", "#679bc5", "#d94248", "#ebd66d", "#62985a", "#ecc832", "#e1a34e", "#ac3241", "#f5812d", "#d63833", "#ef5a30")
+
+source("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/SCCT/Ch_signif.R")
+
+
+```
+
+
+## scTCR
+
+
+```{r}
+
+ch_BB <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/scTCR/ch_BB_scTCR.qs")
+
+head(ch_BB)
+
+ch_BB <- ch_BB %>%
+  mutate(
+    Ex_type = case_when(
+      Ex > 0 ~ "Ex",
+      TRUE ~ "nEx"
+  ))
+
+
+```
+
+
+```{r}
+
+ch_NB <- qread("/soft/sim/scTCR/ch_NB_scTCR.qs")
+
+ch_NB <- ch_NB %>%
+  mutate(
+    Ex_type = case_when(
+      Ex_count == 0  ~ "nEx",
+      Ex_count > 0 ~ "Ex",
+  ))
+
+head(ch_NB)
+
+subset(ch_NB, Ex_count > 0)
+
+```
+
+
+```{r}
+
+ch_B <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/scTCR/ch_B_scTCR.qs")
+
+ch_B <- ch_B %>%
+  mutate(
+    Ex_type = case_when(
+      Ex > 0 ~ "Ex",
+      TRUE ~ "nEx"
+  ))
+
+ch_B
+
+
+```
+
+```{r}
+
+ch_F <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/scTCR/ch_F_scTCR.qs")
+
+ch_F <- ch_F %>%
+  mutate(
+    Ex_type = case_when(
+      Ex > 0 ~ "Ex",
+      TRUE ~ "nEx"
+  ))
+
+ch_F
+
+
+
+```
+
+
+
+```{r}
+
+ch_P <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/scTCR/ch_P_scTCR.qs")
+
+ch_P <- ch_P %>%
+  mutate(
+    Ex_type = case_when(
+      Ex_count == 0  ~ "nEx",
+      Ex_count > 0 ~ "Ex",
+  ))
+
+head(ch_P)
+
+ch_P
+
+
+
+```
+
+
+
+```{r}
+
+ch_NP <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/scTCR/ch_NP_scTCR.qs")
+
+ch_NP <- ch_NP %>%
+  mutate(
+    Ex_type = case_when(
+      Ex_count == 0  ~ "nEx",
+      Ex_count > 0 ~ "Ex",
+  ))
+
+head(ch_NP)
+
+ch_NP
+
+
+```
+
+
+
+```{r}
+
+ch_P$model <- "P"
+ch_NP$model <- "NP"
+ch_BB$model <- "BB"
+ch_B$model <- "B"
+ch_NB$model <- "NB"
+ch_F$model <- "F"
+
+
+ch_model <- bind_rows(
+  ch_P[, c("pd", "pre", "post", "FC", "avg_cov", "Ex_type", "response", "Ex_ratio", "model")], 
+  ch_NP[, c("pd", "pre", "post", "FC", "avg_cov", "Ex_type", "response", "Ex_ratio", "model")], 
+  ch_BB[, c("pd", "pre", "post", "FC", "avg_cov", "Ex_type", "response", "Ex_ratio", "model")], 
+  ch_B[, c("pd", "pre", "post", "FC", "avg_cov", "Ex_type", "response", "Ex_ratio", "model")], 
+  ch_NB[, c("pd", "pre", "post", "FC", "avg_cov", "Ex_type", "response", "Ex_ratio", "model")], 
+  ch_F[, c("pd", "pre", "post", "FC", "avg_cov", "Ex_type", "response", "Ex_ratio", "model")] )
+
+
+head(ch_model)
+
+
+ch_model$model <- factor(ch_model$model, levels = c("NB", "NP", "BB", "P", "B", "F"))
+
+```
+
+## fig. 5a
+
+
+```{r}
+
+table(subset(ch_model, model == "NB")$datasets, subset(ch_model, model == "NB")$Ex_type)
+table(subset(ch_model, model == "BB")$datasets, subset(ch_model, model == "BB")$Ex_type)
+table(subset(ch_model, model == "B")$datasets, subset(ch_model, model == "B")$Ex_type)
+
+
+ch_model$response <- factor(ch_model$response, levels = c("R", "NR"))
+
+ch_model_Ex <- subset(ch_model, Ex_type == "Ex")
+
+head(ch_model_Ex)
+
+
+p1 <- ggplot(ch_model_Ex, aes(x = response, y = Ex_ratio, group = response, color = response)) +
+        geom_boxplot(outliers = FALSE, linewidth = 0.1) +
+  geom_jitter(aes(color = response), position = position_jitterdodge(0.9), alpha = 0.9, size = 0.7, stroke = NA, shape = 19) +  # 添加数据点
+  scale_y_log10() + 
+#   scale_y_continuous(breaks = c(0, 0.00001, 0.00005, 0.0001, 0.0005)) + 
+facet_wrap( ~ model, scales = "fixed", space = "free_x") +
+  labs(
+    title = "",
+    x = "Replicates",
+    y = "TCR ratio"
+  ) +
+  # scale_color_npg()+
+scale_color_manual(values = c("NR" = "#98989d", "R" = "#856e91")) +  
+  # scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), # 刻度线宽
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) + 
+  geom_signif(
+    comparisons = list(c("R", "NR")), step_increase = 0.1,
+    map_signif_level = FALSE, test = wilcox.test, test.args=list(alternative = "two.side", paired = FALSE),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p1
+
+
+```
+
+## fig. 6a
+
+
+
+```{r}
+
+
+
+p1 <- ggplot(ch_model_Ex, aes(x = model, y = Ex_ratio, group = model, color = model)) +
+        geom_boxplot(outliers = FALSE, linewidth = 0.1) +
+  geom_jitter(aes(color = model), position = position_jitterdodge(0.9), alpha = 0.9, size = 0.7, stroke = NA, shape = 19) +  # 添加数据点
+  scale_y_log10() + 
+  labs(
+    title = "",
+    x = "Replicates",
+    y = "TCR ratio"
+  ) +
+  scale_color_npg()+
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) + 
+  geom_signif(
+    comparisons = list(c("NB", "BB"), c("NP", "BB"), c("P", "BB"), c("B", "BB")), step_increase = 0.1,
+    map_signif_level = FALSE, test = wilcox.test, test.args=list(alternative = "two.side", paired = FALSE),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+
+p1
+
+
+```
+
+
+
+
+

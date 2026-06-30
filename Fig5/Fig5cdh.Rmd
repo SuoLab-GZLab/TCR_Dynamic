@@ -1,0 +1,609 @@
+
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+library(RColorBrewer)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig5/")
+
+```
+
+
+
+```{r}
+
+signif_ratio_1 <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/Rep_all/signif_ratio_rep.qs")
+signif_ratio_3 <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/HC4/signif_ratio_rep.qs")
+signif_ratio_2 <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/SCCB/SCCB_rep_new/signif_ratio_rep.qs")
+
+head(signif_ratio_1)
+
+
+signif_ratio_2$datasets <- "SCCB"
+signif_ratio_3$datasets <- "HC4"
+
+head(signif_ratio_1)
+head(signif_ratio_2)
+head(signif_ratio_3)
+
+# signif_ratio_3 <- signif_ratio_3 %>%
+#   filter(!grepl("aliquot03", test))
+
+# signif_ratio_3 <- signif_ratio_3 %>%
+#   filter(!grepl("aliquot04", test))
+
+# signif_ratio_3 <- signif_ratio_3 %>%
+#   filter(!grepl("Subject4", patient))
+
+# signif_ratio_3 <- signif_ratio_3 %>%
+#   filter(!grepl("Subject3", patient))
+
+# signif_ratio_3 <- signif_ratio_3 %>%
+#   filter(!grepl("Subject2", patient))
+
+
+signif_ratio <- bind_rows(signif_ratio_1, signif_ratio_2, signif_ratio_3)
+
+signif_ratio <- subset(signif_ratio, datasets %ni% c("BCC", "SCCT") )
+
+signif_ratio$datasets <- factor(signif_ratio$datasets, levels = c("NSCLC", "HCL", "CMV", "SCIDX1", "SCCB", "HC4", "HPV"))
+
+signif_ratio$model <- factor(signif_ratio$model, levels = c("NB", "BB", "NP", "P", "B", "F"))
+
+
+signif_ratio$signif_origin <- factor(signif_ratio$signif_origin, levels = c("De", "Ex"))
+
+
+qsave(signif_ratio, "signif_ratio.qs")
+
+
+signif_ratio <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/PBMC_rep_all/signif_TCR_0414.qs")
+
+head(signif_ratio)
+
+
+signif_ratio <- signif_ratio %>%
+  mutate(
+    datasets1 = case_when(
+      patient %in% c("Subject1" , "Subject2")  ~ "HC4_1",
+      patient %in% c("Subject3" , "Subject4")  ~ "HC4_2",
+      TRUE ~ datasets
+  ))
+
+
+signif_ratio$datasets1 <- factor(signif_ratio$datasets1, levels = c("NSCLC", "HC4_1", "HCL", "CMV", "SCIDX1", "SCCB",  "HC4_2", "HPV"))
+
+
+signif_ratio <- subset(signif_ratio, Group1 %ni% c("aliquot03", "aliquot04") & Group2 %ni% c("aliquot03", "aliquot04"))
+
+head(signif_ratio)
+
+# signif_ratio <- subset(signif_ratio, datasets1 != "HC4_2")
+
+table(signif_ratio$datasets1, signif_ratio$model)
+```
+
+
+## fig. 5c
+
+```{r}
+
+mean_ratio_df <- signif_ratio %>%
+  group_by(datasets1, model) %>%
+  summarise(mean_ratio = mean(signif_ratio, na.rm = TRUE), .groups = "drop")
+
+mean_ratio_df 
+
+
+mean_ratio_wide <- mean_ratio_df %>%
+  pivot_wider(names_from = model, values_from = mean_ratio)
+
+tempColors = c("white", "grey80", brewer.pal(9, "YlOrRd")[4:9] )
+
+
+fmt_sci <- function(x, digits = 2) {
+  out <- sprintf(paste0("%.", digits - 1, "e"), x)  # 5.7e-05
+  sub("e-0", "e-", out)  # 让 e-05 -> e-5
+}
+
+brewer.pal(9, "YlOrRd")[c(4:7)] 
+
+tempColors = c("grey100", "grey86", brewer.pal(9, "YlOrRd")[c(4:7)] )
+
+
+p <- ggplot(mean_ratio_df, aes(x = model, y = datasets1, fill = mean_ratio)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = fmt_sci(mean_ratio, digits = 2)),
+            size = 2, color = "black") +
+  scale_fill_gradientn(colours = tempColors,
+                        limits = c(1e-6, 1), 
+                        breaks = c(1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1),
+                       trans = "log10",
+                       na.value = "white") +
+  labs(x = "Model", y = "Dataset", fill = "Mean signif_ratio") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size = 6, color = "black"),
+    axis.text.y = element_text(size = 6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 7)
+  )
+
+p
+
+
+```
+
+
+## Extended Data Fig. 5b
+
+
+
+```{r}
+
+
+p1_1 <- ggplot(subset(signif_ratio, Group1 %ni% c("aliquot03", "aliquot04") & Group2 %ni% c("aliquot03", "aliquot04") & datasets != "HPV"), aes(x = model, y = signif_ratio, group = model, color = model)) +
+        geom_boxplot(outliers = FALSE, linewidth = 0.1) +
+  scale_y_log10() + 
+facet_wrap( ~ datasets1, scales = "free_x", space = "free_x", nrow = 1) +
+  labs(
+    title = "",
+    x = "Replicates",
+    y = "TCR ratio"
+  ) +
+  scale_color_npg()+
+  # scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1_1
+
+
+
+
+p1_2 <- ggplot(subset(signif_ratio, Group1 %ni% c("aliquot03", "aliquot04") & Group2 %ni% c("aliquot03", "aliquot04") & datasets == "HPV"), aes(x = model, y = signif_ratio, group = model, color = model)) +
+        geom_boxplot(outliers = FALSE, linewidth = 0.1) +
+  scale_y_log10() + 
+facet_wrap( ~ datasets1, scales = "free_x", space = "free_x") +
+  labs(
+    title = "",
+    x = "Replicates",
+    y = "TCR ratio"
+  ) +
+  scale_color_npg()+
+  # scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+p1 <- p1_1 + p1_2 + plot_layout(width = c(4, 1))
+
+p1
+
+
+```
+
+
+## Extended Data Fig. 5c
+
+```{r}
+
+signif_ratio_test_2 <- subset(signif_ratio, signif_origin %in% c("De", "Ex")  & Group1 %ni% c("aliquot03", "aliquot04") & Group2 %ni% c("aliquot03", "aliquot04"))
+
+
+unique(signif_ratio_test_2$datasets1)
+
+signif_ratio_test_2 <- signif_ratio_test_2 %>%
+  mutate(
+    group = case_when(
+      datasets1 %in% c("HCL" , "HC4_1")  ~ "Group1",
+      datasets1 %in% c("CMV" , "SCIDX1", "SCCB", "NSCLC", "HC4_2")  ~ "Group2",
+      TRUE ~ "Group3"
+  ))
+
+
+p2 <- ggplot(subset(signif_ratio_test_2), aes(x = group, y = signif_ratio, group = group, color = group)) +
+        geom_boxplot(outliers = FALSE, linewidth = 0.1) +
+#   geom_line(aes(group = patient), position = position_dodge(0.4), color = "grey80", linewidth = 0.2, alpha = 0.6) +
+#   geom_jitter(aes(color = signif_origin), position = position_jitterdodge(0.9), alpha = 0.9, size = 0.7, stroke = NA, shape = 19) +  # 添加数据点
+  scale_y_log10() + 
+facet_grid(~ model, scales = "free_y") +
+  labs(
+    title = "",
+    x = "Replicates",
+    y = "TCR ratio"
+  ) +
+#   scale_color_npg()+
+  scale_color_manual(values = c("#496AB4", "#E9AC4C", "#D85446")) + 
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(
+    comparisons = list(c("Group1", "Group2") , c("Group1", "Group3"), c("Group2", "Group3")), step_increase = 0.1,
+    map_signif_level = TRUE, test = wilcox.test, test.args=list(alternative = "two.side", paired = FALSE),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p2
+
+
+```
+
+```{r}
+
+all_data <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/PBMC_rep_all/all_data_0414.qs")
+
+
+head(all_data)
+
+table(all_data$datasets, all_data$signif)
+
+table(all_data$datasets)
+
+subset(all_data, datasets == "NSCLC")$patient %>% unique()
+subset(all_data, datasets == "SCIDX1")$patient %>% unique()
+subset(all_data, datasets == "HC4")$patient %>% unique()
+
+subset(all_data, datasets == "HC4")$patient %>% unique()
+
+table(subset(all_data, model == "B")$datasets)
+
+
+head(all_data[, c("clonality_delta", "TCR_delta", "TCell_delta")])
+
+all_data %>%
+  count(model, datasets, signif)
+
+unique(all_data$datasets)
+
+all_data <- all_data %>%
+  mutate(
+    datasets1 = case_when(
+      patient %in% c("Subject1" , "Subject2")  ~ "HC4_1",
+      patient %in% c("Subject3" , "Subject4")  ~ "HC4_2",
+      TRUE ~ datasets
+  ))
+
+
+
+all_data <- all_data %>%
+  mutate(
+    group = case_when(
+      datasets1 %in% c("HCL" , "HC4_1")  ~ "Group1",
+      datasets1 %in% c("CMV" , "SCIDX1", "SCCB", "NSCLC", "HC4_2")  ~ "Group2",
+      TRUE ~ "Group3"
+  ))
+
+unique(all_data$group)
+table(all_data$group)
+
+
+
+all_data$Texp_delta <- all_data$Texp2 / all_data$Texp1
+
+table(all_data$model)
+
+all_data_Ex <- subset(all_data, model == "BB")
+
+
+all_data4factor <- all_data_Ex[, c("patient", "test", "signif", "group", "Group1", "Group2", "datasets2", "TCR_avg", "clonality_avg", "TCR_delta", "clonality_delta", "Texp_avp", "D50_avg", "ECF_avg", "Texp_delta", "shannon_avg")] %>% unique()
+
+
+dim(all_data4factor)
+
+
+all_data4factor_long <- all_data4factor %>%
+  pivot_longer(
+    cols = c(TCR_avg, clonality_avg, TCR_delta, clonality_delta, Texp_avp, D50_avg, ECF_avg, Texp_delta, shannon_avg),
+    names_to = "type",
+    values_to = "ratio"
+  )
+
+
+all_data4factor_long$type <- factor(all_data4factor_long$type, c("TCR_avg",  "ECF_avg", "Texp_avp","clonality_avg", "TCR_delta", "clonality_delta",  "D50_avg","Texp_delta", "shannon_avg"))
+
+all_data4factor_long_1 <- subset(all_data4factor_long,  Group1 %ni% c("aliquot03", "aliquot04") & Group2 %ni% c("aliquot03", "aliquot04"))  %>%  unique()
+
+
+
+all_data4factor_long_2 <- subset(all_data4factor_long, Group1 %ni% c("aliquot03", "aliquot04") & Group2 %ni% c("aliquot03", "aliquot04") & signif == "No")  %>%  unique()
+
+head(all_data4factor_long_1)
+head(signif_ratio_test_2)
+
+
+# all_data4factor_long_1_1 <- subset(all_data4factor_long_1[, c("patient", "test" ,  "group" , "type", "ratio")], type %in% c("TCR_avg", "Texp_avp", "ECF_avg"))
+all_data4factor_long_1_1 <- all_data4factor_long_1[, c("patient", "test" ,  "group" , "type", "ratio")]
+
+signif_ratio_test_2 <- subset(signif_ratio_test_2, model == "B")[, c("patient", "test" ,  "group" , "signif_ratio")]
+
+signif_ratio_test_2$type <- "signif"
+signif_ratio_test_2$ratio <- signif_ratio_test_2$signif_ratio
+
+data4factor <- bind_rows(all_data4factor_long_1_1, signif_ratio_test_2)
+
+head(data4factor)
+
+data4factor$type <- factor(data4factor$type, c("signif", "TCR_avg",  "ECF_avg", "Texp_avp"))
+
+
+p7_1 <- ggplot(all_data4factor_long_1, aes(x = group, y = ratio, group = group, color = group)) +
+        geom_boxplot(outliers = FALSE, linewidth = 0.1) +
+#   geom_line(aes(group = patient), position = position_dodge(0.4), color = "grey80", linewidth = 0.2, alpha = 0.6) +
+#   geom_jitter(aes(color = signif_origin), position = position_jitterdodge(0.9), alpha = 0.9, size = 0.7, stroke = NA, shape = 19) +  # 添加数据点
+  scale_y_log10() + 
+facet_wrap( ~ type, scales = "free_y", ncol = 9) +
+  labs(
+    title = "",
+    x = "Replicates",
+    y = "TCR avg"
+  ) +
+  # scale_color_npg()+
+     scale_color_manual(values = c("#496AB4", "#E9AC4C", "#D85446")) + 
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+geom_signif(
+    comparisons = list(c("Group1", "Group2"), c( "Group1", "Group3"),  c("Group2", "Group3")), step_increase = 0.1,
+    map_signif_level = TRUE, test = wilcox.test, test.args=list(alternative = "two.side", paired = FALSE),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p7_1
+
+
+```
+
+
+## Fig. 5h
+
+
+```{r}
+
+signif_TCR <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/PBMC_rep_all/signif_TCR_0414.qs")
+
+
+signif_TCR <- signif_TCR %>%
+  filter(!grepl("aliquot03", test))
+
+signif_TCR <- signif_TCR %>%
+  filter(!grepl("aliquot04", test))
+
+library(Polychrome)
+library(ggsci)
+
+n <- length(sorted_levels)
+
+## JAMA palette 
+jama_cols <- pal_jama()(7)
+
+
+n_rest <- n - length(jama_cols)
+
+
+poly_cols <- createPalette(
+  n_rest,
+seedcolors = c("#496AB4", "#E9AC4C", "#D85446")
+)
+
+
+my_cols <- c(jama_cols, poly_cols)
+
+
+names(my_cols) <- sorted_levels
+
+head(signif_TCR)
+
+unique(signif_TCR$datasets1)
+
+table(signif_TCR$status2)
+
+
+signif_TCR4test_1 <- subset(signif_TCR, datasets1 %in% c("HC4_1", "HC4_2", "SCCB"))
+
+table(signif_TCR4test_1$status2, signif_TCR4test_1$datasets1)
+
+library(dplyr)
+library(ggplot2)
+
+head(signif_TCR4test_1)
+
+
+df <- table(signif_TCR4test_1$status2, signif_TCR4test_1$datasets1) %>% as.data.frame()                      # status2、datasets1、Freq
+
+df_nonzero <- df %>%
+  group_by(Var1) %>%                           
+  filter(sum(Freq) > 0) %>%                    
+  ungroup()
+
+
+library(dplyr)
+
+status2_count <- signif_TCR4test_1 %>%
+  group_by(model, datasets1, status2) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(model, datasets1) %>%
+  mutate(prop = n / sum(n)) %>%
+  ungroup()
+
+status2_count
+
+library(RColorBrewer)
+
+tempColors = c( "grey90", brewer.pal(9, "YlOrRd")[4:9] )
+tempColors = c( "grey90", "skyblue" , "gold", brewer.pal(9, "YlOrRd")[c(4, 5, 6)] )
+
+
+p <- ggplot(status2_count, aes(x = datasets1, y = status2, fill = prop)) +
+# p <- ggplot(status2_count, aes(x = status2, y = datasets1, fill = n +1)) +
+  geom_tile(color = "white") +
+  # scale_fill_gradient(low = "white", high = "steelblue", trans = "log10") +
+  scale_fill_gradientn(colours = tempColors[1:6],
+                      #  trans = "log10",
+                       na.value = "white") +
+# facet_wrap( ~ model, scales = "fixed", ncol = 1) +
+facet_wrap( ~ model, scales = "fixed", nrow = 1) +
+  labs(x = "datasets1", y = "status2", fill = "Count") +
+  theme_bw()+
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size = 6, color = "black", angle = 45, hjust = 1),
+    # axis.text.x = element_text(size = 6, color = "black"),
+    axis.text.y = element_text(size = 6, color = "black"),
+    # axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 7)
+  )
+
+
+p
+
+
+
+```
+
+
+## Extended Data Fig. 4e
+
+```{r}
+
+
+tb <- subset(all_data, Ex_ratio > 0 & Group1 %ni% c("aliquot03", "aliquot04") & Group2 %ni% c("aliquot03", "aliquot04") )
+
+perason <- cor.test(tb$clonality_avg, tb$Ex_ratio, method = "pearson")
+
+
+library(ggpubr)
+
+p1 <- tb %>%
+  ggplot(aes(x = Texp_avp, y = Ex_ratio)) +
+  geom_point(aes(color = group), alpha = 0.7, stroke = NA, shape = 19, size = 1) +
+  geom_smooth(method = "lm", se = TRUE, fill = "grey90", alpha = 0.3, linewidth = 0.3) +  
+# scale_color_manual(values = colors[c(2, 5)]) +
+  # scale_y_continuous(breaks = seq(0,1,0.2)) + 
+   scale_x_continuous(
+    trans = "log2",
+    breaks = scales::trans_breaks("log2", function(x) 2^x),  
+    # labels = scales::trans_format("log2", scales::math_format(2^.x))  
+  ) +
+  scale_y_log10() +
+  stat_cor(
+    aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~")),
+    method = "pearson",
+    size = 2.2,
+    label.x = 0.05,
+    label.y = 0.05  
+  ) +
+  scale_color_manual(values = c("#496AB4", "#E9AC4C", "#D85446")) + 
+facet_wrap(~ model, scales = "fixed", ncol = 6)+  
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    # axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_text(size=7, color = "black"),
+    axis.line = element_line(linewidth = 0),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1
+
+```
+
+
+

@@ -1,0 +1,185 @@
+
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+library(ggsci)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig5/")
+
+```
+
+
+
+```{r}
+
+all_data_PBMC_rep <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/PBMC_rep_all/all_data_0414.qs")
+all_data_PBMC_across <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/PBMC_across_all/all_data_0419.qs")
+all_data_Tumor <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Tumor_rep_across/all_data_0417.qs")
+
+all_data_PBMC_rep$type <- "PBMC_Rep"
+all_data_PBMC_across$type <- "PBMC_Across"
+all_data_Tumor$type <- paste0("Tumor_", all_data_Tumor$type)
+
+all_data_Tumor$Texp_avp <- all_data_Tumor$Texp_avg
+
+all_data_Tumor$Texp_avg <- NULL
+all_data_PBMC_across$Texp_avg <- NULL
+
+head(all_data_PBMC_rep)
+head(all_data_PBMC_across)
+head(all_data_Tumor)
+
+table(all_data_PBMC_rep$datasets)
+
+
+all_data <- bind_rows(all_data_PBMC_rep, all_data_PBMC_across, all_data_Tumor)
+
+all_data$type <- factor(all_data$type, levels = c("PBMC_Rep", "PBMC_Across", "Tumor_Rep", "Tumor_Across"))
+
+head(all_data)
+
+
+
+```
+
+## Fig. 5m
+
+
+
+```{r}
+
+all_data_signif <- subset(all_data, signif == "Yes" &  Group1 %ni% c("aliquot03", "aliquot04") & Group2 %ni% c("aliquot03", "aliquot04"))
+
+head(all_data_signif)
+
+
+p1 <- ggplot(subset(all_data_signif, datasets %ni% c("HPV", "HCD") & Ex_ratio > 0), aes(x = type, y = Ex_ratio, group = type)) +
+        geom_boxplot(outliers = FALSE, linewidth = 0.1) +
+#   geom_line(aes(group = patient), position = position_dodge(0.4), color = "grey80", linewidth = 0.2, alpha = 0.6) +
+  geom_jitter(aes(color = type), position = position_jitterdodge(0.9), alpha = 0.9, size = 0.7, stroke = NA, shape = 19) +  # 添加数据点
+#    scale_x_continuous(breaks = 1:7) +   
+# scale_y_continuous(limits = c(0, 0.32)) +  
+# stat_summary(fun.data=mean_sdl, fun.args = list(mult=1), 
+#         geom="errorbar", color="black", width=0.2, size = 0.1,) +
+#   stat_summary(fun.y=mean, geom="point", size = 1.6, color="black", stroke = NA, shape = 19, alpha = 0.8) +
+facet_grid( ~ model, scales = "free", space = "free_x") +
+  labs(
+    title = "",
+    x = "Replicates",
+    y = "TCR ratio"
+  ) +
+  scale_color_iterm()+
+scale_y_log10() +
+  # scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  )  +
+geom_signif(
+    comparisons = list(c("PBMC_Rep", "PBMC_Across"), c("PBMC_Across", "Tumor_Rep"),  c("Tumor_Across", "Tumor_Rep"), c("Tumor_Across", "PBMC_Across")), step_increase = 0.1,
+    map_signif_level = F, test = wilcox.test, test.args=list(alternative = "two.sided", paired = FALSE),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+p1
+
+
+```
+
+
+## Extended Data Fig. 5d
+
+
+```{r}
+
+all_data_use <- subset(all_data, Group1 %ni% c("aliquot03", "aliquot04") & Group2 %ni% c("aliquot03", "aliquot04") & datasets %ni% c("HPV", "HCD"))
+
+
+head(all_data_use)
+
+all_data_use <- all_data_use %>%
+  mutate(
+    tissue = case_when(
+    type %in% c("PBMC_Rep", "PBMC_Across") ~ "PBMC",
+    type %in% c("Tumor_Rep", "Tumor_Across") ~ "Tumor",
+      TRUE ~ "others"
+  ))
+
+table(all_data_use$signif)
+
+
+df_long <- all_data_use[, c("patient", "type", "test", "datasets", "TCR_avg", "TCell_avg", "clonality_avg", "clonality_delta", "shannon_avg", "Texp_avp", "D50_avg", "ECF_avg", "Texp_delta", "model")] %>%
+  pivot_longer(
+    cols = c(TCR_avg, TCell_avg, clonality_avg, clonality_delta, shannon_avg, Texp_avp, D50_avg, ECF_avg, Texp_delta),
+    names_to = "metric",
+    values_to = "value"
+  )
+
+
+head(df_long)
+
+p1 <- ggplot(subset(df_long), aes(x = type, y = value, group = type, fill = type)) +
+        geom_boxplot(outliers = FALSE, linewidth = 0.1) +
+  scale_y_log10() + 
+  labs(
+    title = "",
+    x = "Replicates",
+    y = "TCR_avg"
+  ) +
+facet_wrap(~ metric, scales = "free_y", ncol  = 9) +
+    scale_fill_iterm()+
+# scale_fill_manual(values = c("PBMC" = "#a01b2b", "Tumor" = "#e48d24")) +
+      # scale_color_manual(values = my_colors) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  )  +
+geom_signif(
+    comparisons = list(c("PBMC_Rep", "PBMC_Across"), c("PBMC_Across", "Tumor_Rep"),  c("Tumor_Across", "Tumor_Rep"), c("Tumor_Across", "PBMC_Across")), step_increase = 0.1,
+    map_signif_level = F, test = wilcox.test, test.args=list(alternative = "two.sided", paired = FALSE),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+
+p1
+
+
+```
+

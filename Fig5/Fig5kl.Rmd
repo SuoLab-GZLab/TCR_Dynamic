@@ -1,0 +1,218 @@
+
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig5/")
+
+```
+
+
+## Fig. 5k
+
+
+```{r}
+
+signif_ratio <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Tumor_rep_across/signif_ratio.qs")
+
+head(signif_ratio)
+
+
+mean_ratio_df <- subset(signif_ratio, type == "Rep") %>%
+  group_by(datasets, model) %>%
+  summarise(mean_ratio = mean(signif_ratio, na.rm = TRUE), .groups = "drop")
+
+mean_ratio_df  
+
+table(mean_ratio_df$datasets)
+
+mean_ratio_df$datasets <- factor(mean_ratio_df$datasets, levels = rev(c("Craig", "BCC", "Nghiem", "SCCT")))
+
+
+mean_ratio_wide <- mean_ratio_df %>%
+  pivot_wider(names_from = model, values_from = mean_ratio)
+
+
+
+head(mean_ratio_wide)
+
+library(RColorBrewer)
+
+library(scales)
+
+
+fmt_sci <- function(x, digits = 2) {
+  out <- sprintf(paste0("%.", digits - 1, "e"), x)  # 5.7e-05
+  sub("e-0", "e-", out)  #  e-05 -> e-5
+}
+
+head(mean_ratio_df)
+
+tempColors = c("grey100", "grey86", brewer.pal(9, "YlOrRd")[c(3, 4,5,7)] )
+
+
+p <- ggplot(mean_ratio_df, aes(x = model, y = datasets, fill = mean_ratio)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = fmt_sci(mean_ratio, digits = 2)),
+            size = 2, color = "black") +
+  scale_fill_gradientn(colours = tempColors,
+                        # limits = c(1e-6, 1), 
+                        # breaks = c(1e-6, 1e-4, 1e-2, 1),
+                       trans = "log10",
+                       na.value = "white") +
+# facet_grid(~ signif_origin, scales = "free_y", space = "free_y") +
+  labs(x = "Model", y = "Dataset", fill = "Mean signif_ratio") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size = 6, color = "black"),
+    axis.text.y = element_text(size = 6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 7)
+  )
+
+p
+
+```
+
+## Fig. 5l
+
+
+```{r}
+
+
+mean_ratio_df <- subset(signif_ratio, type == "Across") %>%
+  group_by(datasets, model, signif_origin) %>%
+  summarise(mean_ratio = mean(signif_ratio, na.rm = TRUE), .groups = "drop")
+
+mean_ratio_df  
+
+table(mean_ratio_df$datasets)
+
+mean_ratio_df$datasets <- factor(mean_ratio_df$datasets, levels = rev(c("SCCT_across",  "BCCT_across", "HN_across")))
+
+
+mean_ratio_wide <- mean_ratio_df %>%
+  pivot_wider(names_from = model, values_from = mean_ratio)
+
+
+
+head(mean_ratio_wide)
+
+tempColors = c( "grey90", brewer.pal(9, "YlOrRd")[c(1, 3, 4, 5, 7)] )
+
+library(RColorBrewer)
+
+library(scales)
+
+
+fmt_sci <- function(x, digits = 2) {
+  out <- sprintf(paste0("%.", digits - 1, "e"), x)  # 5.7e-05
+  sub("e-0", "e-", out)  # e-05 -> e-5
+}
+
+head(mean_ratio_df)
+
+tempColors = c("grey100", "grey86", brewer.pal(9, "YlOrRd")[c(3, 4, 5,7)] )
+
+
+p <- ggplot(mean_ratio_df, aes(x = model, y = datasets, fill = mean_ratio)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = fmt_sci(mean_ratio, digits = 2)),
+            size = 2, color = "black") +
+  scale_fill_gradientn(colours = tempColors,
+                        # limits = c(1e-6, 1), 
+                        # breaks = c(1e-3, 5e-3, 1e-2, 5e-2),
+                       trans = "log10",
+                       na.value = "white") +
+facet_wrap( ~ signif_origin, scales = "free_y", space = "free_y", ncol = 1) +
+  labs(x = "Model", y = "Dataset", fill = "Mean signif_ratio") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size = 6, color = "black"),
+    axis.text.y = element_text(size = 6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 7)
+  )
+
+p
+
+```
+
+## Extended Data Fig. 5a
+
+
+```{r}
+
+
+signif_ratio$group <- paste0(signif_ratio$signif_origin, "@", signif_ratio$type)
+
+
+p1 <- ggplot(signif_ratio, aes(x = model, y = signif_ratio, group = model)) +
+        geom_boxplot(outliers = FALSE, linewidth = 0.1) +
+#   geom_line(aes(group = patient), position = position_dodge(0.4), color = "grey80", linewidth = 0.2, alpha = 0.6) +
+  geom_jitter(aes(color = model), position = position_jitterdodge(0.9), alpha = 0.9, size = 0.7, stroke = NA, shape = 19) +  # 添加数据点
+#    scale_x_continuous(breaks = 1:7) +   
+# scale_y_continuous(limits = c(0, 0.32)) +  
+# stat_summary(fun.data=mean_sdl, fun.args = list(mult=1), 
+#         geom="errorbar", color="black", width=0.2, size = 0.1,) +
+#   stat_summary(fun.y=mean, geom="point", size = 1.6, color="black", stroke = NA, shape = 19, alpha = 0.8) +
+facet_wrap(signif_origin ~ datasets, scales = "fixed",  ncol = 7) +
+  labs(
+    title = "",
+    x = "Replicates",
+    y = "TCR ratio"
+  ) +
+  scale_color_npg()+
+scale_y_log10() +
+  # scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1
+
+```

@@ -1,0 +1,132 @@
+
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig5/")
+
+```
+
+
+
+```{r}
+
+ch_all_1 <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/HPV_ds/ch_all_BB_HCD.qs")
+ch_all_2 <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/HPV_ds/ch_all_BB_HCD_sn_1.qs")
+
+ch_all_HCD <- bind_rows(ch_all_1, ch_all_2)
+
+ch_all_HPV <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/Rep/HPV_ds/ch_all_BB_HPV.qs")
+
+ch_all_HCD$datasets <- "HCD"
+ch_all_HPV$datasets <- "HPV"
+
+
+ch_all <- bind_rows(ch_all_HCD, ch_all_HPV)
+
+head(ch_all)
+
+
+head(ch_all_HPV)
+
+
+unique(ch_all$TCR_pre)
+
+head(ch_all[, c("signif_origin", "cdr3b", "texp_pre", "texp_post", "TCR_pre", "TCR_post")])
+
+library(dplyr)
+
+res <- ch_all %>%
+  count(texp_pre, texp_post, TCR_pre, TCR_post, signif_origin,  clonality_pre ,clonality_post, ecf_pre,  ecf_post, D50_pre, D50_post, shannon_pre, shannon_post, datasets, name = "count")
+
+
+head(res)
+
+res_wide <- res %>%
+  tidyr::pivot_wider(
+    names_from = signif_origin,
+    values_from = count,
+    values_fill = 0
+  )
+
+
+subset(res_wide, datasets == "HPV")
+
+
+res_wide$Ex_ratio <- res_wide$Ex / res_wide$TCR_post
+res_wide$De_ratio <- res_wide$De / res_wide$TCR_pre
+
+head(res_wide)
+
+
+
+res_wide$clonality_avg <- ( res_wide$clonality_pre + res_wide$clonality_post ) / 2
+res_wide$shannon_avg <- ( res_wide$shannon_pre + res_wide$shannon_post ) / 2
+res_wide$TCR_avg <- ( res_wide$TCR_pre + res_wide$TCR_post ) / 2
+res_wide$ecf_avg <- ( res_wide$ecf_pre + res_wide$ecf_post ) / 2
+res_wide$D50_avg <- ( res_wide$D50_pre + res_wide$D50_post ) / 2
+
+
+res_wide$Tcell_pre <- res_wide$TCR_pre * res_wide$texp_pre
+res_wide$Tcell_post <- res_wide$TCR_post * res_wide$texp_post
+res_wide$TCell_avg <- ( res_wide$Tcell_pre + res_wide$Tcell_post ) / 2
+res_wide$Texp_avg <- ( res_wide$texp_pre + res_wide$texp_post ) / 2
+
+
+head(as.data.frame(res_wide), 30)
+head(as.data.frame(res_wide), 10)
+
+
+res_wide$signif_ratio <- (res_wide$Ex_ratio + res_wide$De_ratio ) / 2
+```
+
+## Fig. 5g
+
+```{r}
+
+p1 <- ggplot(res_wide, aes(x = Texp_avg, y = signif_ratio, color = datasets)) +
+  geom_line(linewidth = 0.12) +
+  geom_point(size = 0.6, stroke = NA, shape = 19) +
+  scale_x_continuous(
+    trans = "log2",
+    breaks = scales::trans_breaks("log2", function(x) 2^x),  
+    # labels = scales::trans_format("log2", scales::math_format(2^.x))  
+  ) +
+  scale_y_log10(breaks = c(1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1), limits = c(1e-5, 1))+
+# facet_wrap( ~ datasets, scales = "free_y", nrow = 1) +
+  scale_color_manual(values = c("#953984", "#FFC82D")) + 
+  labs(x = "Texp", y = "Expanded ratio", title = "") +
+  theme_bw(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_text(size=6, color = "black"),
+    axis.text.y = element_text(size=6, color = "black"),
+    # axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    strip.text.y = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+
+p1
+
+```
+
