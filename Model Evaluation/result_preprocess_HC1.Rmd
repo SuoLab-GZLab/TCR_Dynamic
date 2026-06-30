@@ -1,0 +1,740 @@
+
+
+## NB
+
+```{r}
+
+getwd()
+
+filepath <- "/home/xumeng/TCR_Dynamic/Ex_model_test/HCL/data4noiset/NB1/"
+
+files <- list.files(filepath, pattern = "new", full.names = TRUE) 
+
+files
+
+NB_Ex <- NULL
+NB_Ex_TCR <- NULL
+
+for (i in files){
+
+tmp <- read.table(i, header = T, sep = "\t")
+
+pt <- paste0(str_split(i, "_", simplify = TRUE)[, 6])
+
+test <- paste0(str_split(i, "_", simplify = TRUE)[, 7], "_", str_split(i, "_", simplify = TRUE)[, 8])
+
+print(paste0(pt, "#", test))
+
+
+colnames(tmp)[c(8,9,12)] <- c("pre", "post", "pv")
+
+head(tmp)
+
+tmp <- tmp %>%
+          filter(tmp$pre + tmp$post >= 5)
+
+tmp$qv <- stats::p.adjust(tmp$pv, method = "BH")
+
+tmp <- tmp[order(tmp$qv, decreasing = FALSE), ]
+
+tmp <- tmp[tmp$qv < 0.05, ]
+
+
+if (nrow(tmp) == 0){
+    
+    next
+
+} else {
+
+tmp <- tmp %>%
+  mutate(
+    status = case_when(
+      pre > 0 & post > 0 ~ "across",
+      TRUE ~ "only",
+    )
+  )
+
+tmp$pt <- pt
+
+tmp$test <- test
+head(tmp)
+
+NB_Ex_TCR <- bind_rows(NB_Ex_TCR, tmp)
+
+Count <- data.frame(patient = pt, Ex_count = nrow(tmp), test = test)
+
+NB_Ex <- bind_rows(NB_Ex, Count)
+
+}
+}
+
+NB_Ex
+
+head(NB_Ex_TCR)
+
+NB_Ex$model <- "NB"
+NB_Ex_TCR$model <- "NB"
+
+getwd()
+
+setwd("/home/xumeng/TCR_Dynamic/Ex_model_test/HCL")
+
+qsave(NB_Ex, "NB_Ex.qs")
+qsave(NB_Ex_TCR, "NB_Ex_TCR.qs")
+
+```
+
+
+
+## NB
+
+```{r}
+
+getwd()
+
+filepath <- "/home/xumeng/TCR_Dynamic/Ex_model_test/HCL/data4noiset/NB/"
+
+files <- list.files(filepath, pattern = "new", full.names = TRUE) 
+
+files
+
+library(purrr)
+library(tidyr)
+library(dplyr)
+
+NB_De <- NULL
+NB_De_TCR <- NULL
+
+
+for (i in files){
+
+tmp <- read.table(i, header = T, sep = "\t")
+
+pt <- paste0(str_split(i, "_", simplify = TRUE)[, 6])
+
+test <- paste0(str_split(i, "_", simplify = TRUE)[, 7], "_", str_split(i, "_", simplify = TRUE)[, 8])
+
+
+print(paste0(pt, "#", test))
+
+colnames(tmp)[c(8,9,12)] <- c("pre", "post", "pv")
+
+head(tmp)
+
+tmp <- tmp %>%
+          filter(tmp$pre + tmp$post >= 5)
+
+tmp$qv <- stats::p.adjust(tmp$pv, method = "BH")
+
+tmp <- tmp[order(tmp$qv, decreasing = FALSE), ]
+
+tmp <- tmp[tmp$qv < 0.05, ]
+
+
+if (nrow(tmp) == 0){
+    
+    next
+
+} else {
+
+tmp <- tmp %>%
+  mutate(
+    status = case_when(
+      pre > 0 & post > 0 ~ "across",
+      TRUE ~ "only",
+    )
+  )
+
+tmp$pt <- pt
+tmp$test <- test
+
+head(tmp)
+
+NB_De_TCR <- bind_rows(NB_De_TCR, tmp)
+
+Count <- data.frame(pt = pt, De_count = nrow(tmp), test = test)
+
+NB_De <- bind_rows(NB_De, Count)
+
+}
+}
+
+
+NB_De$patient <- NB_De$pt
+
+NB_De$pt <- NULL
+
+NB_De
+
+NB_De$model <- "NB"
+NB_De_TCR$model <- "NB"
+
+qsave(NB_De, "NB_De.qs")
+qsave(NB_De_TCR, "NB_De_TCR.qs")
+
+```
+
+
+```{r}
+
+NB <- full_join(NB_Ex, NB_De[, -4], by = c("patient", "test"))
+
+NB
+
+head(TCR_count4test)
+
+data_all_NB <- left_join(TCR_count4test, NB, by = c("patient", "test")) %>% as.data.frame()
+
+data_all_NB
+
+data_all_NB <- data_all_NB %>%
+  mutate(
+    signif = case_when(
+      De_count > 0 | Ex_count > 0 ~ "Yes",
+      TRUE ~ "No",
+    )
+  )
+
+table(data_all_NB$signif)
+
+qsave(data_all_NB, "data_all_NB.qs")
+
+
+```
+
+
+
+## NP
+
+```{r}
+
+getwd()
+
+filepath <- "/home/xumeng/TCR_Dynamic/Ex_model_test/HCL/data4noiset/NP1/"
+
+files <- list.files(filepath, pattern = "new", full.names = TRUE) 
+
+files
+
+
+NP_Ex <- NULL
+NP_Ex_TCR <- NULL
+
+for (i in files){
+
+tmp <- read.table(i, header = T, sep = "\t")
+
+
+pt <- paste0(str_split(i, "_", simplify = TRUE)[, 6])
+
+test <- paste0(str_split(i, "_", simplify = TRUE)[, 7], "_", str_split(i, "_", simplify = TRUE)[, 8])
+
+print(paste0(pt, "#", test))
+
+
+colnames(tmp)[c(8,9,12)] <- c("pre", "post", "pv")
+
+head(tmp)
+
+tmp <- tmp %>%
+          filter(tmp$pre + tmp$post >= 5)
+
+tmp$qv <- stats::p.adjust(tmp$pv, method = "BH")
+
+tmp <- tmp[order(tmp$qv, decreasing = FALSE), ]
+
+tmp <- tmp[tmp$qv < 0.05, ]
+
+
+if (nrow(tmp) == 0){
+    
+    next
+
+} else {
+
+tmp <- tmp %>%
+  mutate(
+    status = case_when(
+      pre > 0 & post > 0 ~ "across",
+      TRUE ~ "only",
+    )
+  )
+
+tmp$pt <- pt
+
+tmp$test <- test
+head(tmp)
+
+NP_Ex_TCR <- bind_rows(NP_Ex_TCR, tmp)
+
+Count <- data.frame(pt = pt, Ex_count = nrow(tmp), test = test)
+
+NP_Ex <- bind_rows(NP_Ex, Count)
+
+
+}
+}
+
+NP_Ex$patient <- NP_Ex$pt
+
+NP_Ex$pt <- NULL
+
+NP_Ex
+NP_Ex_TCR
+
+NP_Ex$model <- "NP"
+NP_Ex_TCR$model <- "NP"
+
+getwd()
+
+qsave(NP_Ex, "NP_Ex.qs")
+qsave(NP_Ex_TCR, "NP_Ex_TCR.qs")
+
+```
+
+
+```{r}
+
+getwd()
+
+filepath <- "/home/xumeng/TCR_Dynamic/Ex_model_test/HCL/data4noiset/NP/"
+
+files <- list.files(filepath, pattern = "new", full.names = TRUE) 
+
+files
+
+
+NP_De <- NULL
+NP_De_TCR <- NULL
+
+for (i in files){
+
+tmp <- read.table(i, header = T, sep = "\t")
+
+pt <- paste0(str_split(i, "_", simplify = TRUE)[, 6])
+
+test <- paste0(str_split(i, "_", simplify = TRUE)[, 7], "_", str_split(i, "_", simplify = TRUE)[, 8])
+
+
+print(paste0(pt, "#", test))
+
+colnames(tmp)[c(8,9,12)] <- c("pre", "post", "pv")
+
+head(tmp)
+
+tmp <- tmp %>%
+          filter(tmp$pre + tmp$post >= 5)
+
+tmp$qv <- stats::p.adjust(tmp$pv, method = "BH")
+
+tmp <- tmp[order(tmp$qv, decreasing = FALSE), ]
+
+tmp <- tmp[tmp$qv < 0.05, ]
+
+
+if (nrow(tmp) == 0){
+    
+    next
+
+} else {
+
+tmp <- tmp %>%
+  mutate(
+    status = case_when(
+      pre > 0 & post > 0 ~ "across",
+      TRUE ~ "only",
+    )
+  )
+
+tmp$pt <- pt
+tmp$test <- test
+
+head(tmp)
+
+NP_De_TCR <- bind_rows(NP_De_TCR, tmp)
+
+Count <- data.frame(pt = pt, De_count = nrow(tmp), test = test)
+
+NP_De <- bind_rows(NP_De, Count)
+
+}
+}
+
+
+NP_De$patient <- NP_De$pt
+
+NP_De$pt <- NULL
+
+NP_De
+
+NP_De$model <- "NP"
+NP_De_TCR$model <- "NP"
+
+qsave(NP_De, "NP_De.qs")
+qsave(NP_De_TCR, "NP_De_TCR.qs")
+
+```
+
+
+```{r}
+
+# NP_Ex$pt_test <- paste0(NP_Ex$patient, "#", NP_Ex$test)
+# NP_De$pt_test <- paste0(NP_De$patient, "#", NP_De$test)
+
+# NP_Ex <- NP_Ex[, c("pt_test", "Ex_count")]
+# NP_De <- NP_De[, c("pt_test", "De_count")]
+
+head(NP_Ex)
+head(NP_De)
+
+NP <- full_join(NP_Ex, NP_De[, -4], by = c("patient", "test"))
+
+NP
+
+data_all_NP <- left_join(TCR_count4test, NP, by = c("patient", "test")) %>% as.data.frame()
+
+data_all_NP
+
+data_all_NP <- data_all_NP %>%
+  mutate(
+    signif = case_when(
+      De_count > 0 | Ex_count > 0 ~ "Yes",
+      TRUE ~ "No",
+    )
+  )
+
+table(data_all_NP$signif)
+
+qsave(data_all_NP, "data_all_NP.qs")
+
+
+```
+
+
+
+## P
+
+```{r}
+
+getwd()
+
+filepath <- "/home/xumeng/TCR_Dynamic/Ex_model_test/HCL/data4noiset/P1/"
+
+files <- list.files(filepath, pattern = "new", full.names = TRUE) 
+
+files
+
+P_Ex <- NULL
+P_Ex_TCR <- NULL
+
+for (i in files){
+
+tmp <- read.table(i, header = T, sep = "\t")
+
+
+pt <- paste0(str_split(i, "_", simplify = TRUE)[, 6])
+
+test <- paste0(str_split(i, "_", simplify = TRUE)[, 7], "_", str_split(i, "_", simplify = TRUE)[, 8])
+
+print(paste0(pt, "#", test))
+
+
+colnames(tmp)[c(8,9,12)] <- c("pre", "post", "pv")
+
+head(tmp)
+
+tmp <- tmp %>%
+          filter(tmp$pre + tmp$post >= 5)
+
+tmp$qv <- stats::p.adjust(tmp$pv, method = "BH")
+
+tmp <- tmp[order(tmp$qv, decreasing = FALSE), ]
+
+tmp <- tmp[tmp$qv < 0.05, ]
+
+
+if (nrow(tmp) == 0){
+    
+    next
+
+} else {
+
+tmp <- tmp %>%
+  mutate(
+    status = case_when(
+      pre > 0 & post > 0 ~ "across",
+      TRUE ~ "only",
+    )
+  )
+
+tmp$pt <- pt
+
+tmp$test <- test
+head(tmp)
+
+P_Ex_TCR <- bind_rows(P_Ex_TCR, tmp)
+
+Count <- data.frame(pt = pt, Ex_count = nrow(tmp), test = test)
+
+P_Ex <- bind_rows(P_Ex, Count)
+
+
+}
+}
+
+
+P_Ex$patient <- P_Ex$pt
+
+P_Ex$pt <- NULL
+
+P_Ex
+
+P_Ex$model <- "P"
+P_Ex_TCR$model <- "P"
+
+getwd()
+
+qsave(P_Ex, "P_Ex.qs")
+qsave(P_Ex_TCR, "P_Ex_TCR.qs")
+
+```
+
+
+```{r}
+
+getwd()
+
+filepath <- "/home/xumeng/TCR_Dynamic/Ex_model_test/HCL/data4noiset/P/"
+
+files <- list.files(filepath, pattern = "new", full.names = TRUE) 
+
+files
+
+P_De <- NULL
+P_De_TCR <- NULL
+
+for (i in files){
+
+tmp <- read.table(i, header = T, sep = "\t")
+
+pt <- paste0(str_split(i, "_", simplify = TRUE)[, 6])
+
+test <- paste0(str_split(i, "_", simplify = TRUE)[, 7], "_", str_split(i, "_", simplify = TRUE)[, 8])
+
+
+print(paste0(pt, "#", test))
+
+colnames(tmp)[c(8,9,12)] <- c("pre", "post", "pv")
+
+head(tmp)
+
+tmp <- tmp %>%
+          filter(tmp$pre + tmp$post >= 5)
+
+tmp$qv <- stats::p.adjust(tmp$pv, method = "BH")
+
+tmp <- tmp[order(tmp$qv, decreasing = FALSE), ]
+
+tmp <- tmp[tmp$qv < 0.05, ]
+
+
+if (nrow(tmp) == 0){
+    
+    next
+
+} else {
+
+tmp <- tmp %>%
+  mutate(
+    status = case_when(
+      pre > 0 & post > 0 ~ "across",
+      TRUE ~ "only",
+    )
+  )
+
+tmp$pt <- pt
+tmp$test <- test
+
+head(tmp)
+
+P_De_TCR <- bind_rows(P_De_TCR, tmp)
+
+Count <- data.frame(pt = pt, De_count = nrow(tmp), test = test)
+
+P_De <- bind_rows(P_De, Count)
+
+}
+}
+
+
+P_De$patient <- P_De$pt
+
+P_De$pt <- NULL
+
+P_De
+
+P_De$model <- "P"
+P_De_TCR$model <- "P"
+
+qsave(P_De, "P_De.qs")
+qsave(P_De_TCR, "P_De_TCR.qs")
+
+```
+
+
+```{r}
+
+P <- full_join(P_Ex, P_De[, -4], by = c("patient", "test"))
+
+
+P
+
+data_all_P <- left_join(TCR_count4test, P, by = c("patient", "test")) %>% as.data.frame()
+
+data_all_P
+
+data_all_P <- data_all_P %>%
+  mutate(
+    signif = case_when(
+      De_count > 0 | Ex_count > 0 ~ "Yes",
+      TRUE ~ "No",
+    )
+  )
+
+
+table(data_all_P$signif)
+
+qsave(data_all_P, "data_all_P.qs")
+
+
+```
+
+
+
+
+```{r}
+
+ch_all <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/HCL/ch_all_F.qs")
+
+ch_all
+
+signif_count_df <- ch_all %>%
+  group_by(patient, test, signif_origin) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  pivot_wider(
+    names_from  = signif_origin,
+    values_from = n,
+    values_fill = 0
+  )
+
+signif_count_df
+
+colnames(signif_count_df)[3:4] <- c("De_count", "Ex_count")
+
+data_all_F <- left_join(TCR_count4test, signif_count_df, by = c("patient", "test")) %>% as.data.frame()
+
+data_all_F <- data_all_F %>%
+  mutate(
+    signif = case_when(
+      De_count > 0 | Ex_count > 0 ~ "Yes",
+      TRUE ~ "No",
+    )
+  )
+
+data_all_F
+
+table(data_all_F$signif)
+
+qsave(data_all_F, "data_all_F.qs")
+
+
+
+```
+
+
+
+
+```{r}
+
+ch_all <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/HCL/ch_all_BB.qs")
+
+ch_all
+
+signif_count_df <- ch_all %>%
+  group_by(patient, test, signif_origin) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  pivot_wider(
+    names_from  = signif_origin,
+    values_from = n,
+    values_fill = 0
+  )
+
+signif_count_df
+
+colnames(signif_count_df)[3:4] <- c("De_count", "Ex_count")
+
+data_all_BB <- left_join(TCR_count4test, signif_count_df, by = c("patient", "test")) %>% as.data.frame()
+
+data_all_BB <- data_all_BB %>%
+  mutate(
+    signif = case_when(
+      Ex_count > 0 ~ "Yes",
+      TRUE ~ "No",
+    )
+  )
+
+data_all_BB
+
+table(data_all_BB$signif)
+
+qsave(data_all_BB, "data_all_BB.qs")
+
+
+
+```
+
+
+
+```{r}
+
+ch_all <- qread("/home/xumeng/TCR_Dynamic/Ex_model_test/HCL/ch_all_B.qs")
+
+ch_all
+
+signif_count_df <- ch_all %>%
+  group_by(patient, test, signif_origin) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  pivot_wider(
+    names_from  = signif_origin,
+    values_from = n,
+    values_fill = 0
+  )
+
+signif_count_df
+
+colnames(signif_count_df)[3:4] <- c("De_count", "Ex_count")
+
+data_all_B <- left_join(TCR_count4test, signif_count_df, by = c("patient", "test")) %>% as.data.frame()
+
+data_all_B <- data_all_B %>%
+  mutate(
+    signif = case_when(
+      De_count > 0 | Ex_count > 0 ~ "Yes",
+      TRUE ~ "No",
+    )
+  )
+
+data_all_B
+
+table(data_all_B$signif)
+
+qsave(data_all_B, "data_all_B.qs")
+
+```
+
+
+
+
+
+
+
