@@ -1,0 +1,231 @@
+
+
+```{r}
+
+rm(list = ls())
+
+library(ggpmisc)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+library(aplot)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig4/")
+
+```
+
+
+
+```{r}
+
+patient_ratio <- qread("/home/xumeng/TCR_Dynamic/randomicity/HC_vs_ICB/patient_ratio.qs")
+
+head(patient_ratio)
+
+unique(patient_ratio$patient)
+table(patient_ratio$Type)
+
+```
+
+```{r}
+
+data4po <- patient_ratio[, c("patient","po_TCR_ratio", "T1_TCell", "T1_TCR","T1_TCell_pct",  "T1_TCR_pct", "T1_T2_TCell", "T1_T2_TCR","T1_clonality", "T1_div","depth", "Type", "datasets")] %>% unique()
+
+
+cov <- c("T1_TCR_pct")
+
+# fmla <- as.formula(paste("po_TCR_ratio ~", paste(covs_all, collapse = " + ")))
+fmla <- as.formula(paste("po_TCR_ratio ~", paste(cov, collapse = " + ")))
+
+model1 <- lm(fmla, data = data4po)
+
+fitted_vals <- fitted(model1)
+
+po4box <- data4po %>%
+    mutate(adjusted_value = fitted_vals)
+
+
+```
+
+
+
+```{r}
+
+data4eg <- patient_ratio[, c("patient","eg_TCR_ratio",  "T2_TCell", "T2_TCell_pct", "T2_TCR", "T2_TCR_pct", "T2_T1_TCell", "T2_T1_TCR", "T2_div", "T2_clonality", "datasets" , "depth", "Type")] %>% unique()
+
+data4eg$Type <- factor(data4eg$Type)
+
+
+cov <- c("T2_TCR_pct")
+fmla <- as.formula(paste("eg_TCR_ratio ~", paste(cov, collapse = " + ")))
+
+fmla
+
+model2 <- lm(fmla, data = data4eg)
+
+fitted_vals <- fitted(model2)
+
+eg4box <- data4eg %>%
+    mutate(adjusted_value = fitted_vals)
+
+
+```
+
+
+```{r}
+
+head(po4box)
+
+po4box_1 <- po4box[, c("patient", "adjusted_value", "T1_TCR_pct", "po_TCR_ratio")]
+
+eg4box_1 <- eg4box[, c("patient", "adjusted_value", "T2_TCR_pct", "eg_TCR_ratio")]
+
+ts4box_1 <- left_join(po4box_1, eg4box_1, by = "patient")
+
+colnames(ts4box_1)[c(2,5)] <- c("po_adj", "eg_adj")
+
+head(ts4box_1)
+
+
+
+ts4box_long <- ts4box_1 %>%
+  gather(key = "status", value = "Ratio", po_adj, eg_adj, T1_TCR_pct, T2_TCR_pct, po_TCR_ratio, eg_TCR_ratio)
+
+ts4box_long <- ts4box_long %>%
+  mutate(Datasets = str_split(patient, "@", simplify = TRUE)[, 2])
+
+ts4box_long <- ts4box_long %>%
+  mutate(Datasets = str_split(Datasets, "_", simplify = TRUE)[, 1])
+
+
+ts4box_long <- ts4box_long %>%
+  mutate(
+    Type = case_when(
+      Datasets %in% c("SCC", "HN", "BCC", "Uro") ~ "ICB",
+      TRUE ~ "HC"
+    )
+  )
+
+head(ts4box_long)
+
+ts4box_long$status <- factor(ts4box_long$status, levels = c("po_adj", "eg_adj", "T1_TCR_pct", "T2_TCR_pct", "po_TCR_ratio","eg_TCR_ratio"))
+
+
+p2 <- ggplot(subset(ts4box_long, status %in% c("po_adj", "eg_adj")), aes(x = Type, y = as.numeric(Ratio), color = Type)) +
+      geom_point(aes(color = Type), position = position_jitterdodge(0.6), alpha = 0.7, stroke = NA, shape = 19)+
+  scale_size(range = c(0.2, 3), name = "T2") +
+      stat_summary(fun.y = median, geom = 'crossbar', width = 0.3, size = 0.1, color = 'black') +
+  stat_summary(fun.data = function(x) median_hilow(x, 0.5), geom = 'errorbar', width = 0.2, size = 0.15, color = 'black') +
+  scale_color_manual(values = c("#676767", "#F16541")) +
+      scale_y_continuous(breaks = seq(0.7, 0.9, 0.1), limits = c(0.65, 0.95)) +
+      ggtitle("") +
+      labs(
+        x = NULL, y = "TCR Ratio",
+        fill = "Tissue"
+      ) +
+      theme_classic() +
+      facet_wrap(~ status, scales = "free", ncol = 2) +
+      theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 8, color = "black"),
+        axis.title.y = element_text(size = 9),
+        axis.line = element_line(linewidth = 0.2),
+        axis.ticks = element_line(linewidth = 0.2),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.spacing = unit(0.4, "lines"),
+        strip.background = element_rect(fill = "white", color = "white"),
+        strip.text = element_text(size = 7, face = "bold", colour = "black"),
+        legend.position = "bottom",
+        legend.text = element_text(size = 6),
+        legend.title = element_text(size = 7)
+      ) +
+      geom_signif(
+        comparisons = list(c("HC", "ICB")), step_increase = 0.1,
+        map_signif_level = F, test = wilcox.test, test.args = list(alternative = "two.side", paired = F),
+        tip_length = 0, color = "black", size = 0.2, textsize = 2
+      )
+
+p2
+
+
+
+
+```
+
+
+
+```{r}
+
+
+ts4box_long <- ts4box_1 %>%
+  gather(key = "status", value = "Ratio", po_adj, eg_adj)
+
+ts4box_long <- ts4box_long %>%
+  mutate(Datasets = str_split(patient, "@", simplify = TRUE)[, 2])
+
+ts4box_long <- ts4box_long %>%
+  mutate(Datasets = str_split(Datasets, "_", simplify = TRUE)[, 1])
+
+ts4box_long <- ts4box_long %>%
+  mutate(
+    Type = case_when(
+      Datasets %in% c("HCL", "HCD") ~ "Health",
+      TRUE ~ Datasets
+    )
+  )
+
+ts4box_long$Type <- factor(ts4box_long$Type, levels = c("Health", "BCC", "HN", "SCC", "Uro"))
+
+comp <- list(c("Health", "BCC"), c("Health", "HN"), c("Health", "SCC"),  c("Health", "Uro"))
+
+colors <- ggsci::pal_locuszoom()(7)
+
+ts4box_long$status <- factor(ts4box_long$status, levels = c("po_adj", "eg_adj"))
+
+p2 <- ggplot(subset(ts4box_long, status %in% c("po_adj", "eg_adj")), aes(x = Type, y = as.numeric(Ratio), color = Type)) +
+      geom_point(aes(color = Type), position = position_jitterdodge(0.9), alpha = 0.7, stroke = NA, shape = 19)+
+  scale_size(range = c(0.2, 3), name = "T2") +
+      stat_summary(fun.y = median, geom = 'crossbar', width = 0.3, size = 0.1, color = 'black') +
+  stat_summary(fun.data = function(x) median_hilow(x, 0.5), geom = 'errorbar', width = 0.2, size = 0.15, color = 'black') +
+    scale_color_manual(values = colors[c(1,2,3, 5, 6, 7)]) +
+      scale_y_continuous(breaks = seq(0, 1.2, 0.2)) +
+      ggtitle("") +
+      labs(
+        x = NULL, y = "TCR Ratio",
+        fill = "Datasets"
+      ) +
+      theme_classic() +
+      facet_wrap(~ status, scales = "fixed", ncol = 2) +
+      theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 8, color = "black"),
+        axis.title.y = element_text(size = 9),
+        axis.line = element_line(linewidth = 0.2),
+        axis.ticks = element_line(linewidth = 0.2),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.spacing = unit(0.4, "lines"),
+        strip.background = element_rect(fill = "white", color = "white"),
+        strip.text = element_text(size = 7, face = "bold", colour = "black"),
+        legend.position = "bottom",
+        legend.text = element_text(size = 6),
+        legend.title = element_text(size = 7)
+      ) +
+      geom_signif(
+        comparisons = comp, step_increase = 0.1,
+        map_signif_level = F, test = wilcox.test, test.args = list(alternative = "two.side", paired = F),
+        tip_length = 0, color = "black", size = 0.2, textsize = 2
+      )
+
+p2
+
+
+```
+

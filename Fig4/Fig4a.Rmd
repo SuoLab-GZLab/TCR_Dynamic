@@ -1,0 +1,206 @@
+```{r}
+
+library(ggpmisc)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+library(aplot)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig4/")
+
+```
+
+
+```{r}
+
+
+all_bulk <- qread("/home/xumeng/TCR_Dynamic/Fig/Fig2_simu1/all_bulk_0407.qs")
+
+
+```
+
+
+```{r}
+
+head(all_bulk)
+
+summary_stats <- unique(all_bulk) %>%
+  group_by(patient, time, Datasets) %>%
+  summarise(
+    n_rows = n(),                        
+    sum_count = sum(count_bl, na.rm = TRUE)  
+  # ) %>%
+  # summarise(
+  #   mean_n_rows = mean(n_rows),          
+  #   mean_sum_count = mean(sum_count)     
+  )
+
+summary_stats
+
+# setwd("/home/xumeng/TCR_Dynamic/Fig/Fig2_p2")
+
+write.csv(summary_stats, "Fig2_real_distre_0407.csv")
+
+```
+
+
+```{r}
+
+head(all_bulk)
+
+
+# all_bulk$count <- all_bulk$count_bl
+
+all_bulk <- all_bulk %>% rename(count = count_bl)
+
+
+all_bulk$sampleid <- paste0(all_bulk$patient, "@", all_bulk$time)
+
+head(all_bulk)
+
+
+quantiles <- subset(all_bulk, count > 0) %>%
+group_by(sampleid, Datasets) %>%
+# group_by(sampleid) %>%
+  summarize(
+    min = min(count),
+    q10 = quantile(count, 0.1),
+    q20 = quantile(count, 0.2),
+    q30 = quantile(count, 0.3),
+    q40 = quantile(count, 0.4),
+    q50 = quantile(count, 0.5),
+    q60 = quantile(count, 0.6),
+    q70 = quantile(count, 0.7),
+    q80 = quantile(count, 0.8),
+    q90 = quantile(count, 0.9),
+    q95 = quantile(count, 0.95),
+    q975 = quantile(count, 0.975),
+    q99 = quantile(count, 0.99),
+    q995 = quantile(count, 0.995),
+    q999 = quantile(count, 0.999),
+    max = max(count),
+  )
+
+
+quantiles_table <- quantiles %>%
+  mutate(across(where(is.numeric), round, digits = 2)) %>% 
+  as.data.frame()
+
+quantiles_table
+
+
+average_df <- quantiles_table %>%
+  group_by(Datasets) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+
+
+print(average_df)
+
+
+average_df <- average_df %>%
+  pivot_longer(
+    cols = -c(Datasets),
+    names_to = "quantile",
+    values_to = "value"
+  )
+
+
+head(average_df)
+
+quantile_level <- unique(average_df$quantile)
+
+quantile_level
+
+average_df$quantile <- factor(average_df$quantile, levels = quantile_level)
+
+library(ggsci)
+
+unique(average_df$Datasets)
+
+average_df$Datasets <- factor(average_df$Datasets, levels = c("BCC_Tumor",  "BCC_pbmc" ,  "CMV" ,       "Craig",      "HC4" ,       "HCD_pbmc" ,  "HCL_pbmc" ,  "HN_pbmc" ,  "HN_tumor", "SCC_pbmc" ,  "SCC_tumor" ,  "HPV" ,       "Nghiem" ,    "SARS2_pbmc" , "SCIDX1",  "Uro_pbmc" ,  "YT_pbmc"))
+
+
+average_df <- average_df %>%
+  mutate(Datasets = case_when(
+    Datasets == "CMV" ~ "CMV_pbmc",
+    Datasets == "HC4" ~ "HC3_pbmc",
+    Datasets == "HPV" ~ "HPV_pbmc",
+    Datasets == "Nghiem" ~ "MCC_tumor",
+    Datasets == "Craig" ~ "HCC_tumor",
+    Datasets == "SCIDX1" ~ "SCIDX1_pbmc",
+    Datasets == "HCD_pbmc" ~ "HC2_pbmc",
+    Datasets == "HCL_pbmc" ~ "HC1_pbmc",
+    Datasets == "YT_pbmc" ~ "YFV1_pbmc",
+    Datasets == "SARS2_pbmc" ~ "COVID-19-1_pbmc",
+    Datasets == "HN_pbmc" ~ "HNSCC1_pbmc",
+    Datasets == "HN_tumor" ~ "HNSCC1_tumor",
+    Datasets == "SCC_pbmc" ~ "HNSCC2_pbmc",
+    Datasets == "SCC_tumor" ~ "HNSCC21_tumor",
+    TRUE ~ Datasets
+  ))
+
+
+p <- ggplot(subset(average_df, quantile %ni% c("q995", "q999")), aes(x = quantile, y = value, group = Datasets, color = Datasets)) +
+  geom_point(size = 0.8) +
+  geom_line(linewidth = 0.14) +
+  # facet_wrap(~ Datasets) +
+  labs(x = "Quantile", y = "Log2(Clonosize)") +
+  scale_y_log10(breaks = c(1, 1e1, 1e2, 1e3, 1e4, 1e5)) +
+  scale_color_manual(values = mycol)+
+  theme_bw()+
+  theme(
+    plot.title = element_text(size = 8, color = "black", hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 6, color = "black"),
+    axis.text.y = element_text(size = 6, color = "black"),
+    axis.title.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_text(size = 7, color = "black"),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_line(linewidth = 0.2),
+    legend.position = "right",
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 7),
+  )
+
+p <- ggplot(subset(average_df, quantile %ni% c("q995", "q999")), aes(x = quantile, y = value, group = Datasets, color = Datasets)) +
+  geom_point(size = 0.8, stroke = NA, shape = 19) +
+  geom_line(linewidth = 0.12) +
+  labs(x = "Quantile", y = "Log2(Clonosize)") +
+  scale_y_log10(breaks = c(1, 1e1, 1e2, 1e3, 1e4, 1e5)) +
+  scale_color_manual(values = mycol) +
+  guides(
+    color = guide_legend(
+      ncol = 2,              
+      keywidth = 0.6,       
+      keyheight = 0.6,       
+      override.aes = list(linewidth = 0.8, size = 1.5)  
+    )
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(size = 8, color = "black", hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 6, color = "black"),
+    axis.text.y = element_text(size = 6, color = "black"),
+    axis.title.y = element_text(size = 7, color = "black"),
+    axis.title.x = element_text(size = 7, color = "black"),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2),
+    panel.grid = element_line(linewidth = 0.2),
+    legend.position = "right",
+    legend.text = element_text(size = 6),       
+    legend.title = element_text(size = 6),      
+    legend.key.size = unit(0.35, "cm"),         
+    legend.spacing.x = unit(0.1, "cm"),         
+    legend.spacing.y = unit(0.05, "cm")         
+  )
+
+p
+
+
+```

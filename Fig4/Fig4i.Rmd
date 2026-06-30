@@ -1,0 +1,144 @@
+
+
+```{r}
+library(ggpmisc)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+library(aplot)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig4/")
+
+```
+
+
+
+```{r}
+
+patient_ratio <- qread("/home/xumeng/TCR_Dynamic/tissue_comp/patient_ratio_new_1027.qs")
+
+
+head(patient_ratio)
+
+unique(patient_ratio$patient) %>% unique()
+
+table(patient_ratio$tissue)
+
+```
+
+```{r}
+
+data4po <- patient_ratio[, c("patient","po_TCR_ratio", "T1_TCR_pct", "depth", "tissue")] %>% unique()
+
+
+cov <- c("T1_TCR_pct")
+
+# fmla <- as.formula(paste("po_TCR_ratio ~", paste(covs_all, collapse = " + ")))
+fmla <- as.formula(paste("po_TCR_ratio ~", paste(cov, collapse = " + ")))
+
+model1 <- lm(fmla, data = data4po)
+
+
+fitted_vals <- fitted(model1)
+
+po4box <- data4po %>%
+    mutate(adjusted_value = fitted_vals)
+
+```
+
+
+
+```{r}
+
+data4eg <- patient_ratio[, c("patient","eg_TCR_ratio", "T2_TCR_pct",   "depth", "tissue")] %>% unique()
+
+
+cov <- c("T2_TCR_pct")
+
+fmla <- as.formula(paste("eg_TCR_ratio ~", paste(cov, collapse = " + ")))
+
+model2 <- glm(fmla, data = data4eg)
+
+fitted_vals <- fitted(model2)
+
+eg4box <- data4eg %>%
+    mutate(adjusted_value = fitted_vals)
+
+```
+
+```{r}
+
+head(po4box)
+
+po4box_1 <- po4box[, c("patient", "adjusted_value")]
+eg4box_1 <- eg4box[, c("patient", "adjusted_value")]
+
+ts4box_1 <- left_join(po4box_1, eg4box_1, by = "patient")
+
+colnames(ts4box_1)[2:3] <- c("po_adj", "eg_adj")
+
+head(ts4box_1)
+
+
+
+ts4box_long <- ts4box_1 %>%
+  gather(key = "status", value = "Ratio", po_adj, eg_adj)
+
+ts4box_long <- ts4box_long %>%
+  mutate(Tissue = str_split(patient, "@", simplify = TRUE)[, 3])
+
+
+head(ts4box_long)
+
+ts4box_long$status <- factor(ts4box_long$status, levels = c("po_adj", "eg_adj"))
+
+ts4box_long$Tissue <- factor(ts4box_long$Tissue, levels = c("LN", "pbmc", "tumor", "nat"))
+
+comp <- combn(c("LN", "pbmc", "tumor", "nat"), 2, simplify = FALSE)
+
+p2 <- ggplot(ts4box_long, aes(x = Tissue, y = as.numeric(Ratio), color = Tissue)) +
+      geom_point(aes(color = Tissue), position = position_jitterdodge(0.85), alpha = 0.7, stroke = NA, shape = 19)+
+  scale_size(range = c(0.2, 3), name = "T2") +
+      stat_summary(fun.y = median, geom = 'crossbar', width = 0.3, size = 0.1, color = 'black') +
+  stat_summary(fun.data = function(x) median_hilow(x, 0.5), geom = 'errorbar', width = 0.2, size = 0.15, color = 'black') +
+      scale_color_manual(values = c("pbmc" = "#a01b2b", "tumor" = "#e48d24", "LN" = "#184e41", "nat" = "#f4cf20")) +
+      scale_y_continuous(breaks = seq(0.7, 0.9, 0.1), limits = c(0.65, 1.1)) +
+      ggtitle("") +
+      labs(
+        x = NULL, y = "TCR Ratio",
+        fill = "Tissue"
+      ) +
+      theme_classic() +
+      facet_wrap(~ status, scales = "free", ncol = 2) +
+      theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 8, color = "black"),
+        axis.title.y = element_text(size = 9),
+        axis.line = element_line(linewidth = 0.2),
+        axis.ticks = element_line(linewidth = 0.2),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.spacing = unit(0.4, "lines"),
+        strip.background = element_rect(fill = "white", color = "white"),
+        strip.text = element_text(size = 7, face = "bold", colour = "black"),
+        legend.position = "bottom",
+        legend.text = element_text(size = 6),
+        legend.title = element_text(size = 7)
+      ) +
+      geom_signif(
+        comparisons = comp, step_increase = 0.1,
+        map_signif_level = F, test = wilcox.test, test.args = list(alternative = "two.side", paired = F),
+        tip_length = 0, color = "black", size = 0.2, textsize = 2
+      )
+
+p2
+
+
+```
+
