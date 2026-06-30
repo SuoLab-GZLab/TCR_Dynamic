@@ -1,0 +1,384 @@
+---
+title: "ArchTCR Test GSE123813"
+author: "xum"
+date: "2024-08-02"
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Clusters and Markers
+
+## load packages and set work path
+
+```{r}
+library(Seurat)
+library(tidyverse)
+library(reshape2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig2/Fig2abcdg/")
+
+mycol <- c("#D62728", "#1F77B4",  "#FF7F0E", "#2CA02C", "#9467BD", "#8C564B", "#E377C2", "#BCBD22", "#17BECF", "#FF9896", "#AEC7E8", "#FFBB78", "#98DF8A",  "#C5B0D5",  "#C49C94",  "#F7B6D2", "#7F7F7F", "#DBDB8D", "#9EDAE5", "#45aab4","#fe7966","#81d0bb","#f9637c","#fbb45c","#038db2","#FFDE99","#B8C8F5","#8fa2dc","#feaac2","#206491", "gold", "seagreen", "tomato", "#285d7c", "#f1d19e", "#e5807c", "#d7969a", "#eeebd8", "#d97d56", "#eecca9", "#eeeddb", "#494651", "#4b98a9", "#719eb6", "#679bc5", "#d94248", "#ebd66d", "#62985a", "#ecc832", "#e1a34e", "#ac3241", "#f5812d", "#d63833", "#ef5a30")
+
+source("/home/xumeng/TCR_Dynamic/color.code.R")
+
+```
+
+## load data 
+
+```{r}
+
+td <- qread("/home/xumeng/TCR_Dynamic/ICB_T/clusters_analysis_2-1/td.qs", nthreads = 10)
+
+qsave(td@meta.data, "td_meta.qs", nthreads = 8)
+
+```
+
+## Find Cluster's Markers
+
+```{r, include=FALSE}
+
+mito_genes <- grep("^MT-", rownames(td), value = TRUE)
+ribo_genes <- grep("^RP[LS]", rownames(td), value = TRUE)
+orf_gene <- grep("*orf*", rownames(td), value = TRUE)
+hsp_gene <- grep("^HSP", rownames(td), value = TRUE)
+trv_gene <- grep("^TR[ABGD]V*", rownames(td), value = TRUE)
+
+all_genes <- rownames(td)
+genes_to_keep <- setdiff(all_genes, c(mito_genes, hsp_gene, ribo_genes, orf_gene, trv_gene))
+
+Idents(td) <- 'clusters'
+
+global_DEGs <- FindAllMarkers(td, group.by = 'clusters', only.pos = TRUE)
+
+library(GPTCelltype)
+
+library(openai)
+
+ct <- gptcelltype(global_DEGs, model = 'gpt-4')
+
+print(ct)
+
+clusters_markers <- global_DEGs %>%
+  group_by(cluster) %>%
+  filter(p_val_adj < 0.01)
+
+# write.csv(clusters_markers, "CD8T_clusters_markers.csv")
+
+top_markers <- global_DEGs %>%
+  group_by(cluster) %>%
+  # filter(avg_log2FC > 0.5) %>% 
+  filter(p_val_adj < 0.01) %>% 
+  slice_min(order_by = p_val_adj, n = 10, with_ties = FALSE)
+
+show.genes <- top_markers$gene
+
+Trm <- c("ITGAE", "IL2", "IL10", "CXCR6", "CXCL13", "KCNK5", "RGS1", "CRTAM")
+cycling <- c("MKI67", "ITGB2")
+
+show.genes <- c(show.genes, Trm, cycling)
+
+show.genes <- unique(show.genes)
+
+td$clusters <- factor(td$clusters, levels = c("T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"))
+
+show.genes <- c(
+  "CD8A", "CD8B", "CD4", 
+ "TCF7",  "CCR7", 
+ "KLRB1", "SLC4A10",
+ "GZMK", "EOMES",
+ "XCL1", "ZNF683", 
+ "GZMB",  "ITGAE", "LAG3", "PDCD1",
+  "CXCL13", "RBPJ", "TNFRSF4",  
+  "FOXP3", "CTLA4", "IL2RA", 
+  "MKI67", "TYMS",
+  "ISG15", "IFI6", 
+  "FGFBP2", "FCGR3A"
+  )
+
+
+
+```
+
+
+## fig. 2b
+
+
+```{r, fig.height=16, fig.width=6}
+
+td <- NormalizeData(td, normalization.method = "LogNormalize", assay = "RNA", scale.factor = 10000)
+
+p <- DotPlot(td, features = show.genes)
+
+dat <- p$data
+
+head(dat)
+
+cluster.order <- c("T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10")
+
+colorsForDataType <- c("#6DCCDD", "#EDCAE0", "#F494BE", "#F9B26C", "#A6ADCC", "#C4DA5D")
+colorForClass1 <- c("#C4DA5D", "#6DCCDD", "#F494BE", "#EDCAE0")
+dataTypeLevel <- c("CD4", "CD8", "MAIT", "Tgd", "NKT", "Proliferative")
+
+p <- ggplot(dat, aes(features.plot, id, size=pct.exp, color=avg.exp.scaled)) + 
+  geom_point(shape = 19, stroke=NA) +
+  scale_size(range = c(0, 3)) +#, limits = c(0, 100), breaks = c(0,25,50,75,100))+  
+  guides(size=guide_legend(override.aes=list(shape=21, colour="black", fill=NA))) + 
+  theme(
+    panel.background = element_blank(),
+    panel.border = element_rect(fill = NA),
+    panel.grid.major.x = element_line(color = "grey80", linewidth = 0.001),
+    panel.grid.major.y = element_line(color = "grey80", linewidth = 0.001),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), # 刻度线宽
+    axis.title = element_blank(),
+    axis.text.y = element_text(color='black',size=6),
+    axis.text.x = element_text(color='black',size=6, angle = 90, hjust = 1, vjust = 0.5),
+    legend.position = "bottom",
+    legend.text = element_text(size=6, color = "black"),
+    legend.title = element_text(size=7, color = "black"),
+    legend.key.size = unit(6, "pt")
+    )+
+  scale_color_gradientn(
+        colors = c("#9fb9bc", "white", "#EF7B30"))
+
+p
+
+#336872
+
+ggsave("cluster_markers_dot_new_1.pdf", p, width = 2.3, height = 2)
+
+
+unique(td$cell_types)
+
+
+```
+
+
+
+## fig. 2a
+
+```{r}
+
+head(td)
+
+td_meta <- qread("/home/xumeng/TCR_Dynamic/ICB_T/clusters_analysis_2-1/td_meta.qs")
+
+plot_df <- td_meta
+
+library(mascarade)
+library(tidydr)
+library(ggrastr)
+
+colors_use <- c('#fc8d59','#9e9ac8','#F9C40A','#85C7DC','#0A71B6','#5280AC','#c6d1a7','#e31a1c','#f9d3d7','#08306b')
+
+maskTable <- generateMask(
+  dims = plot_df[, c("UMAP_1", "UMAP_2")],   
+  cluster = plot_df$cell_types,   
+  minDensity = 1.0,   
+  smoothSigma = 0.05)
+
+
+qsave(maskTable, "maskTable.qs")
+
+maskTable <- qread("maskTable.qs")
+
+p <- ggplot(plot_df, aes(x = UMAP_1, y = UMAP_2)) +  
+# geom_point(aes(color = cell_types), size = 0.05) +  
+ geom_point_rast(
+    aes(color = cell_types),
+             size = 0.08,
+             alpha = 0.8,
+    raster.dpi = 600,  
+    shape = 19,
+    stroke = NA
+  ) +
+geom_path(data = maskTable, aes(group = group), linewidth = 0.3, linetype = 2, color = "black") +  coord_fixed(ratio = 1) +  
+scale_color_manual(values = colors_use, guide = guide_legend(override.aes = list(size = 4)) ) +  # 
+theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 8),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y=element_blank(),
+    axis.title.x=element_blank(),
+    axis.line = element_blank(),
+    axis.ticks = element_line(linewidth = 0.2), # 刻度线宽
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) 
+
+p
+
+
+
+```
+
+
+
+```{r}
+
+color.code= c("grey80","#F1DF91", "#FBAD46", "#F36E21", "#C62832", "#8A1739", "#4B0E3D")
+
+markers <- c("CD8A", "CD8B", "CD4")
+
+feature.lst <- sapply(markers, function(gene){
+    p <- FeaturePlot(td, features = gene, slot = "data", raster=TRUE,  order=TRUE, label.size = 6) +
+          scale_color_gradientn(colors = colorRampPalette(color.code)(255)) +
+          theme(legend.position = "none",
+          axis.text = element_blank(),    
+                axis.title = element_blank(),   
+                axis.ticks = element_blank(),   
+                axis.line = element_blank(),    
+                panel.background = element_blank(),  
+                panel.grid.major = element_blank(), 
+                panel.grid.minor = element_blank())  
+    return(p)
+})
+
+library(patchwork)
+
+p3 <- wrap_plots(feature.lst, ncol = 1)
+
+ggsave("CD4_CD8_feature.png", p3, width = 2, height = 6, dpi = 300)
+ggsave("CD4_CD8_feature.pdf", p3, width = 2, height = 6)
+
+```
+
+
+## Extended Data Fig. 1a-c
+
+```{r}
+
+source("/home/xumeng/TCR_R_package/ArchTCR/R/integrate.R")
+
+p <- batch_bar(td,
+cluster = "clusters",
+group = "datasets",
+mycol = clusters_col) 
+
+p
+
+ggsave(paste0("clusters_", "datasets", "_bar.pdf"), p, width = 4.5, height = 3)
+
+p <- batch_bar(td,
+cluster = "clusters",
+group = "TCR",
+mycol = tcr_col) 
+
+p
+
+ggsave(paste0("clusters_", "TCR", "_bar.pdf"), p, width = 4.5, height = 3)
+
+
+p <- batch_bar(td,
+cluster = "clusters",
+group = "treatment",
+mycol = time_col) 
+
+p
+
+ggsave(paste0("clusters_", "treatment", "_bar.pdf"), p, width = 4.5, height = 3)
+
+
+```
+
+
+
+## Fig. 2c
+
+
+```{r}
+
+head(td)
+
+samples <- unique(td$sample)
+
+cell_count <- NULL
+
+for (p in samples) {
+
+td_tmp <- subset(td, sample == p)
+
+cell_count_2 <- table(td_tmp$clusters) %>% as.data.frame()
+
+colnames(cell_count_2) <- c("clusters", "count")
+
+cell_count_2$sample <- p
+
+cell_count_2$ratio <- cell_count_2$count / sum(cell_count_2$count)
+
+cell_count <- rbind(cell_count, cell_count_2)
+
+}
+
+head(cell_count)
+
+cell_count <- left_join(cell_count, unique(td[, c("sample", "treatment","response")]), by = "sample")
+
+comp <- list(c("pre", "post"))
+
+cell_count$treatment <- factor(cell_count$treatment, levels = c("pre", "post"))
+
+library(ggsignif)
+
+p <- ggplot2::ggplot(data = subset(cell_count, response != "no_data"), aes(x = treatment, y = as.numeric(ratio), color = treatment)) +
+        geom_boxplot(outliers = FALSE, linewidth = 0.15) +
+        geom_point(position = position_jitterdodge(0.95), alpha = 0.8, size = 0.8, stroke = NA, shape = 19)+
+        facet_grid(response ~ clusters, scales = "fixed") +
+        labs(x = '', y = "Fraction")+
+        # scale_color_manual(values = c("#9AC4DB", "#ACA1BE")) +
+scale_color_manual(values = c("pre" = "#8d7f6f", "post"= "#9e4532")) +  
+
+        theme_classic() +
+        theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=8, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=9, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "right",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+geom_signif(
+    comparisons = comp, step_increase = 0.1,
+    map_signif_level = F, test = wilcox.test, test.args=list(alternative = "two.side", paired = T),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 2
+  )
+
+
+p
+
+
+```
+
+
+
+
+
+
+
+
+
