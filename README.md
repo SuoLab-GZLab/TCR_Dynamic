@@ -4,7 +4,7 @@
 
 This study establishes a multidimensional quantitative evaluation framework to systematically deconstruct the methodological confounders inherent to temporal T cell receptor (TCR) repertoire analysis. We reveal that widely reported clonal turnover and dynamic abundance shifts observed in sequencing data are fundamentally technical artifacts driven by stochastic sampling of low-expansion clones, phenotypic biases, and localized intra-tumor spatial heterogeneity.
 
-## Repository Structure & Figure Reproduction
+## Structure & Figure Reproduction
 
 The code is organized by corresponding main figures in the manuscript. Each directory contains standalone scripts to reproduce the data processing and visualization steps.
 
