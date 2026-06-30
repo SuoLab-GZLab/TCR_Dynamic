@@ -21,7 +21,9 @@ The code is organized by corresponding main figures in the manuscript. Each dire
 ## Software Requirements
 
 The analytical pipelines are implemented in both R and Python. 
+
 **R Dependencies:**
+
 * `Seurat` (Single-cell RNA/TCR integration and visualization)
 * `ggplot2` (Data visualization)
 * `vagen` (TCR diversity and Chao2 asymptotic estimation)
