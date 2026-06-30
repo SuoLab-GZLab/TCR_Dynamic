@@ -1,0 +1,913 @@
+
+```{r}
+
+rm(list = ls())
+
+library(ggpmisc)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggsignif)
+library(patchwork)
+library(qs)
+library(aplot)
+
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig3/")
+
+```
+
+
+
+```{r}
+
+pat_status <- qread("/home/xumeng/TCR_Dynamic/Fig/Fig2_p2/pat_status_all_1025.qs")
+
+head(pat_status)
+
+subset(pat_status, patient == "P07@SARS2_T3T4")
+
+library(dplyr)
+library(stringr)
+
+pat_status <- pat_status %>%
+  mutate(
+    type = if_else(
+      str_detect(as.character(patient), "SARS2"),
+      "Infection",
+      as.character(type)
+    ),
+    datasets = if_else(
+      str_detect(as.character(patient), "SARS2"),
+      "SARS2",
+      as.character(datasets)
+    )
+  )
+
+
+pat_status <- pat_status %>%
+  mutate(type1 = case_when(
+    type == "ICB" ~ "Cancer immuno.",
+    type == "SBRT" ~ "Cancer radio.",
+    type == "Infection" ~ "Infec./Vacci.",
+    type == "TLGL" ~ "Leuk. immuno.",
+    type == "Trans" ~ "Transplantation",
+    TRUE ~ type
+  ))
+
+
+pat_status$type1 <- factor(pat_status$type1, levels = c("Health", "Cancer immuno.", "Cancer radio.", "Infec./Vacci.", "Leuk. immuno.", "Transplantation"))
+pat_status$type <- factor(pat_status$type, levels = c("Health", "ICB", "SBRT", "Infection", "TLGL", "Trans"))
+
+table(pat_status$type)
+
+
+# pat_status_summarized <- pat_status %>%
+#   group_by(patient, time, datasets, type) %>%
+#   summarise(count_sum = sum(count, na.rm = TRUE), .groups = 'drop')
+
+# print(pat_status_summarized)
+
+# pat_status_summarized %>% as.data.frame()
+
+# write.csv(pat_status_summarized, "Fig2_multi_clinical_all_count.csv")
+
+```
+
+
+## Fig. 3f
+
+```{r}
+
+comp <- list(c("only", "across"))
+
+pat_status$status <- factor(pat_status$status, levels = c("only", "across"))
+
+table(pat_status$datasets)
+table(pat_status$type)
+
+subset(pat_status, datasets == "SARS2" & status == "only" & time == "T2")$proportion %>% mean()
+subset(pat_status, datasets == "Health" & status == "only" & time == "T2")$proportion %>% mean()
+subset(pat_status, type == "Health" & status == "only" & time == "T2")$proportion %>% mean()
+subset(pat_status, type == "Infec./Vacci." & status == "only" & time == "T1")$proportion %>% mean()
+
+
+
+pat_status$facet_group <- interaction(pat_status$type, pat_status$time, pat_status$status)  
+
+
+summary_dat
+
+
+type_colors <- c(
+  "Health" = "#6c90e6",
+  "Infec./Vacci." = "#6eafe5",
+  "Cancer immuno." = "#121645",
+  "Cancer radio." = "#2a399e",
+  "Transplantation" = "#8ad4e1",
+  "Leuk. immuno." = "#b8c5bc"
+)
+
+
+summary_dat <- pat_status %>%  
+# group_by(time, status) %>%  
+group_by(type, time, status) %>%  
+# group_by(facet_group, status) %>%  
+summarise(    Mean = mean(proportion),    
+SE = sd(proportion)/sqrt(n())  )
+
+
+summary_dat$type1 <- factor(summary_dat$type1, levels = c("Health", "Cancer immuno.", "Cancer radio.", "Infec./Vacci.", "Leuk. immuno.", "Transplantation"))
+
+unique(summary_dat$type)
+
+
+p1 <- ggplot(data = summary_dat, aes(x=status, y=type1, fill = Mean)) +
+geom_tile(linewidth = 0.15, alpha = 0.9) +
+geom_text(aes(label = sprintf("%.2f", Mean)), color = "black", size = 2) +
+scale_fill_gradientn(
+        ## limits = c(-1.5, 1.5),
+        # colors = c("#9fb9bc", "white", "#EF7B30")) +
+        # colors = c("#82969D", "white", "#CC312D")) +
+        colors = rev(c("#e59f24", "white","#57acaa"))) +
+        
+facet_grid(~ time, scales = "fixed") +
+ggtitle("") +
+theme_minimal() +
+theme(
+    text = element_text(size = 6,  color = "black"),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title.x = element_text(size = 9,  color = "black"),
+    axis.title.y = element_text(size = 9,  color = "black"),
+    axis.text.x = element_text(size = 8,  color = "black"),
+    axis.text.y = element_text(size = 9,  color = "black"),
+    #legend.title = element_text(angle = 90, hjust = 0.5),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = .2),
+    # panel.border = element_rect(color = "black", fill = NA, linewidth = 0.2),
+    strip.text.x = element_text(size = 9, colour = "black"),
+    strip.background = element_rect(color = "white", fill = "white"),
+    axis.ticks.x=element_blank(),
+    axis.ticks.y=element_blank(),
+    axis.line = element_line(linewidth = 0.1),  
+    axis.ticks = element_line(linewidth = 0.1), 
+    legend.position = "none",
+    panel.grid=element_blank())+
+        coord_fixed() #+
+        # coord_flip()
+
+p1
+
+
+summary_dat <- pat_status %>%  
+group_by(time, status) %>%  
+# group_by(type, time, status) %>%  
+# group_by(facet_group, status) %>%  
+summarise(    Mean = mean(proportion),    
+SE = sd(proportion)/sqrt(n())  )
+
+head(pat_status)
+
+unique(pat_status$type)
+
+
+p2 <- ggplot() +  
+geom_bar(data = pat_status, aes(x = status, y = as.numeric(proportion), color = status), stat = "summary", fun = "mean", fill = "white", linewidth = 0.2, width = 0.8 ) +  
+geom_point(data = pat_status, aes(x = status, y = as.numeric(proportion), color = type), position = position_jitterdodge(0.6), alpha = 0.6, size = 1, stroke = NA, shape = 19)+ 
+geom_errorbar(data = summary_dat, aes(x = status, ymin = Mean - SE, ymax = Mean + SE), width = 0.25, size = 0.1, color = "black") +
+scale_y_continuous(expand = c(0, 0), limits = c(0, 1.1)) +  
+scale_color_manual(values = c("#e59f24", "#57acaa", type_colors)) +  
+facet_wrap(~ time, ncol = 12, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "TCR Ratio",
+    # fill = "Metric",
+    color = "time status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(data = pat_status, aes(x = status, y = as.numeric(proportion)),
+    comparisons = list(c("only", "across")), step_increase = 0.08,
+    map_signif_level = T, test = "wilcox.test", test.args=list(alternative = "two.side", paired = T),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 3
+  )
+
+p2
+
+
+
+library(aplot)
+
+p <- p1 %>%
+  insert_top(p2, height=1.2) 
+
+p
+
+ggsave("TCR_Type_Ratio_across_datasets_bar_tile_wilcox_0625.pdf", p, width = 2, height = 4)
+
+
+comparisons <- list(c("only", "across"))
+
+library(purrr)
+
+head(pat_status)
+
+
+pval_df <- pat_status %>%
+  group_by(time) %>%
+  group_modify(~ {
+    map_dfr(comparisons, function(comp) {
+      group1 <- comp[1]
+      group2 <- comp[2]
+      data1 <- .x %>% filter(status == group1) %>% pull(proportion)
+      data2 <- .x %>% filter(status == group2) %>% pull(proportion)
+
+
+      test_res <- wilcox.test(data1, data2, alternative = "two.sided", paired = TRUE)
+
+      tibble(
+        time = unique(.x$time),
+        # clusters = unique(.x$clusters),
+        group1 = group1,
+        group2 = group2,
+        p.value = test_res$p.value,
+        statistic = test_res$statistic
+      )
+    })
+  }) %>%
+  ungroup()
+
+
+pval_df <- pval_df %>%
+  group_by(time) %>%
+  mutate(p.adj = p.adjust(p.value, method = "BH")) %>%
+  ungroup()
+
+pval_df
+
+
+```
+
+
+## Fig. 3j
+
+```{r}
+
+head(pat_status)
+
+unique(pat_status$patient)
+unique(pat_status$datasets)
+
+
+p2 <- ggplot(subset(pat_status, status == "only"), aes(x = time, y = as.numeric(proportion), color = time)) +
+      geom_point(aes(color = time), position = position_jitterdodge(0.9), size = 0.8, alpha = 0.7, stroke = NA, shape = 19)+
+#   scale_size(range = c(0.2, 3), name = "T2") +
+      stat_summary(fun.y = median, geom = 'crossbar', width = 0.3, size = 0.1, color = 'black') +
+  stat_summary(fun.data = function(x) median_hilow(x, 0.5), geom = 'errorbar', width = 0.2, size = 0.15, color = 'black') +
+  scale_color_manual(values = c("#34689A", "#B2B2B2")) +
+#   scale_y_continuous(limits = c(min(status_ratio_all_long$Ratio), 1.05)) +
+      ggtitle("") +
+      labs(
+        x = NULL, y = "TCR Ratio"
+      ) +
+      theme_classic() +
+      facet_wrap( ~ type, scales = "fixed", ncol = 6) +
+      theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 8, color = "black"),
+        axis.title.y = element_text(size = 9),
+        axis.line = element_line(linewidth = 0.2),
+        axis.ticks = element_line(linewidth = 0.2),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.spacing = unit(0.4, "lines"),
+        strip.background = element_rect(fill = "white", color = "white"),
+        strip.text = element_text(size = 7, face = "bold", colour = "black"),
+        legend.position = "bottom",
+        legend.text = element_text(size = 6),
+        legend.title = element_text(size = 7)
+      ) +
+      geom_signif(
+        comparisons = list(c("T1","T2")), step_increase = 0.1,
+        map_signif_level = F, test = wilcox.test, test.args = list(alternative = "two.side", paired = F),
+        tip_length = 0, color = "black", size = 0.2, textsize = 2
+      )
+
+
+p2
+
+
+p.adjust(c(0.77, 0.39, 0.39, 0.91, 0.052, 0.4), method = "BH")
+
+
+```
+
+
+## Fig. 3g
+
+```{r}
+
+ex_data <- qread("/home/xumeng/TCR_Dynamic/Fig/Fig2_p2/ex_data_all_1.5_1025.qs")
+
+head(ex_data)
+
+comp <- list(c("only", "across"))
+
+table(ex_data$datasets)
+table(ex_data$status)
+table(ex_data$time)
+table(ex_data$status, ex_data$datasets)
+
+unique(ex_data$type)
+
+ex_data <- subset(ex_data, expansion == "ex")
+
+ex_data$status <- factor(ex_data$status, levels = c("only", "across"))
+
+
+ex_data <- ex_data %>%
+  mutate(
+    type = if_else(
+      str_detect(as.character(patient), "SARS2"),
+      "Infection",
+      as.character(type)
+    ),
+    datasets = if_else(
+      str_detect(as.character(patient), "SARS2"),
+      "SARS2",
+      as.character(datasets)
+    )
+  )
+
+
+ex_data <- ex_data %>%
+  mutate(type1 = case_when(
+    type == "ICB" ~ "Cancer immuno.",
+    type == "SBRt" ~ "Cancer radio.",
+    type == "Infection" ~ "Infec./Vacci.",
+    type == "TLGL" ~ "Leuk. immuno.",
+    type == "Trans" ~ "Transplantation",
+    TRUE ~ type
+  ))
+
+
+ex_data$type1 <- factor(ex_data$type1, levels = c("Health", "Cancer immuno.", "Cancer radio.", "Infec./Vacci.", "Leuk. immuno.", "Transplantation"))
+ex_data$type <- factor(ex_data$type, levels = c("Health", "ICB", "SBRt", "Infection", "TLGL", "Trans"))
+
+
+
+summary_dat <- ex_data %>%  
+# group_by(time, status) %>%  
+group_by(type, time, status) %>%  
+# group_by(facet_group, status) %>%  
+summarise(    Mean = mean(proportion),    
+SE = sd(proportion)/sqrt(n())  )
+
+
+p1 <- ggplot(data = summary_dat, aes(x=status, y=type, fill = Mean)) +
+geom_tile(linewidth = 0.15, alpha = 0.9) +
+geom_text(aes(label = sprintf("%.2f", Mean)), color = "black", size = 2) +
+scale_fill_gradientn(
+        ## limits = c(-1.5, 1.5),
+        # colors = c("#9fb9bc", "white", "#EF7B30")) +
+        # colors = c("#82969D", "white", "#CC312D")) +
+        colors = rev(c("#e59f24", "white","#57acaa"))) +
+        
+# facet_grid(time ~ ., scales = "fixed") +
+facet_grid( ~ time, scales = "fixed") +
+ggtitle("") +
+theme_minimal() +
+theme(
+    text = element_text(size = 6,  color = "black"),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title.x = element_text(size = 9,  color = "black"),
+    axis.title.y = element_text(size = 9,  color = "black"),
+    axis.text.x = element_text(size = 8,  color = "black"),
+    axis.text.y = element_text(size = 9,  color = "black"),
+    #legend.title = element_text(angle = 90, hjust = 0.5),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = .2),
+    # panel.border = element_rect(color = "black", fill = NA, linewidth = 0.2),
+    strip.text.x = element_text(size = 9, colour = "black"),
+    strip.background = element_rect(color = "white", fill = "white"),
+    axis.ticks.x=element_blank(),
+    axis.ticks.y=element_blank(),
+    axis.line = element_line(linewidth = 0.1),  
+    axis.ticks = element_line(linewidth = 0.1), 
+    legend.position = "none",
+    panel.grid=element_blank())+
+        coord_fixed() #+
+        # coord_flip()
+
+p1
+
+
+summary_dat <- ex_data %>%  
+group_by(time, status) %>%  
+# group_by(type, time, status) %>%  
+# group_by(facet_group, status) %>%  
+summarise(    Mean = mean(proportion),    
+SE = sd(proportion)/sqrt(n())  )
+
+
+
+p2 <- ggplot() +  
+geom_bar(data = ex_data, aes(x = status, y = as.numeric(proportion), color = status), stat = "summary", fun = "mean", fill = "white", linewidth = 0.2, width = 0.8 ) +  
+geom_point(data = ex_data, aes(x = status, y = as.numeric(proportion), color = type), position = position_jitterdodge(0.95), alpha = 0.6, size = 1, stroke = NA, shape = 19)+ 
+geom_errorbar(data = summary_dat, aes(x = status, ymin = Mean - SE, ymax = Mean + SE), width = 0.25, size = 0.1, color = "black") +
+scale_y_continuous(expand = c(0, 0), limits = c(0, 0.9)) +  
+scale_color_manual(values = c("only" = "#e59f24", "across" = "#57acaa", type_colors)) +  
+facet_wrap(~ time, ncol = 12, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "TCR Ratio",
+    # fill = "Metric",
+    color = "time status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(data = ex_data, aes(x = status, y = as.numeric(proportion)),
+    comparisons = list(c("only", "across")), step_increase = 0.08,
+    map_signif_level = T, test = "wilcox.test", test.args=list(alternative = "two.side", paired = F),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 3
+  )
+
+
+p2
+
+
+library(aplot)
+
+p <- p1 %>%
+  insert_top(p2, height=1.2) 
+
+p
+
+
+pval_df <- ex_data %>%
+  group_by(time) %>%
+  group_modify(~ {
+    map_dfr(comparisons, function(comp) {
+      group1 <- comp[1]
+      group2 <- comp[2]
+      data1 <- .x %>% filter(status == group1) %>% pull(proportion)
+      data2 <- .x %>% filter(status == group2) %>% pull(proportion)
+
+
+      test_res <- wilcox.test(data1, data2, alternative = "two.sided", paired = FALSE)
+
+      tibble(
+        time = unique(.x$time),
+        # clusters = unique(.x$clusters),
+        group1 = group1,
+        group2 = group2,
+        p.value = test_res$p.value,
+        statistic = test_res$statistic
+      )
+    })
+  }) %>%
+  ungroup()
+
+pval_df <- pval_df %>%
+  group_by(time) %>%
+  mutate(p.adj = p.adjust(p.value, method = "BH")) %>%
+  ungroup()
+
+pval_df
+
+
+```
+
+
+## Extended Data Fig. 2gh
+
+
+```{r}
+
+
+div <- qread("/home/xumeng/TCR_Dynamic/Fig/Fig2_p2/div_all_1025.qs")
+
+head(div)
+
+div <- div %>%
+  mutate(
+    time = case_when(
+      time == "pre" ~ "T1",
+      time == "post" ~ "T2",
+      TRUE ~ time
+    )
+  )
+
+comp <- list(c("only", "across"))
+
+div$status <- factor(div$status, levels = c("only", "across"))
+
+div <- div %>%
+  mutate(datasets = str_split(str_split(patient, "@", simplify = TRUE)[, 2], "_", simplify = TRUE)[, 1])
+
+
+div <- div %>%
+  mutate(
+    type = if_else(
+      str_detect(as.character(patient), "SARS2"),
+      "Infection",
+      as.character(type)
+    ),
+    datasets = if_else(
+      str_detect(as.character(patient), "SARS2"),
+      "SARS2",
+      as.character(datasets)
+    )
+  )
+
+
+div <- div %>%
+  mutate(type1 = case_when(
+    type == "ICB" ~ "Cancer immuno.",
+    type == "SBRt" ~ "Cancer radio.",
+    type == "Infection" ~ "Infec./Vacci.",
+    type == "TLGL" ~ "Leuk. immuno.",
+    type == "Trans" ~ "Transplantation",
+    TRUE ~ type
+  ))
+
+
+div$type1 <- factor(div$type1, levels = c("Health", "Cancer immuno.", "Cancer radio.", "Infec./Vacci.", "Leuk. immuno.", "Transplantation"))
+
+
+div <- subset(div, time %in% c("T1", "T2"))
+div <- subset(div, status %in% c("only", "across"))
+
+
+
+
+summary_dat <- div %>%  
+# group_by(time, status) %>%  
+group_by(type, time, status) %>%  
+# group_by(facet_group, status) %>%  
+summarise(    Mean = mean(shannon),    
+SE = sd(shannon)/sqrt(n())  )
+
+summary_dat
+
+p1 <- ggplot(data = summary_dat, aes(x=status, y=type1, fill = Mean)) +
+geom_tile(linewidth = 0.15, alpha = 0.9) +
+geom_text(aes(label = sprintf("%.2f", Mean)), color = "black", size = 2) +
+scale_fill_gradientn(
+        ## limits = c(-1.5, 1.5),
+        # colors = c("#9fb9bc", "white", "#EF7B30")) +
+        # colors = c("#82969D", "white", "#CC312D")) +
+        colors = rev(c("#e59f24", "white","#57acaa"))) +
+        
+# facet_grid(time ~ ., scales = "fixed") +
+facet_grid( ~ time, scales = "fixed") +
+ggtitle("") +
+theme_minimal() +
+theme(
+    text = element_text(size = 6,  color = "black"),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title.x = element_text(size = 9,  color = "black"),
+    axis.title.y = element_text(size = 9,  color = "black"),
+    axis.text.x = element_text(size = 8,  color = "black"),
+    axis.text.y = element_text(size = 9,  color = "black"),
+    #legend.title = element_text(angle = 90, hjust = 0.5),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = .2),
+    # panel.border = element_rect(color = "black", fill = NA, linewidth = 0.2),
+    strip.text.x = element_text(size = 9, colour = "black"),
+    strip.background = element_rect(color = "white", fill = "white"),
+    axis.ticks.x=element_blank(),
+    axis.ticks.y=element_blank(),
+    axis.line = element_line(linewidth = 0.1),  
+    axis.ticks = element_line(linewidth = 0.1), 
+    legend.position = "none",
+    panel.grid=element_blank())+
+        coord_fixed() #+
+        # coord_flip()
+
+p1
+
+
+summary_dat <- div %>%  
+group_by(time, status) %>%  
+# group_by(type, time, status) %>%  
+# group_by(facet_group, status) %>%  
+summarise(    Mean = mean(shannon),    
+SE = sd(shannon)/sqrt(n())  )
+
+
+summary_dat
+
+summary_dat <- subset(summary_dat, status %in% c("only", "across"))
+
+
+p2 <- ggplot() +  
+geom_bar(data = div, aes(x = status, y = as.numeric(shannon), color = status), stat = "summary", fun = "mean", fill = "white", linewidth = 0.2, width = 0.8 ) +  
+geom_point(data = div, aes(x = status, y = as.numeric(shannon), color = type), position = position_jitterdodge(0.95), alpha = 0.6, size = 1, stroke = NA, shape = 19)+ 
+geom_errorbar(data = summary_dat, aes(x = status, ymin = Mean - SE, ymax = Mean + SE), width = 0.25, size = 0.1, color = "black") +
+scale_y_continuous(expand = c(0, 0)) +  
+scale_color_manual(values = c("only" = "#e59f24", "across" = "#57acaa", type_colors)) +  
+facet_wrap(~ time, ncol = 12, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "TCR diversity",
+    # fill = "Metric",
+    color = "time status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(data = div, aes(x = status, y = as.numeric(shannon)),
+    comparisons = list(c("only", "across")), step_increase = 0.08,
+    map_signif_level = T, test = "wilcox.test", test.args=list(alternative = "two.side", paired = T),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 3
+  )
+
+p2
+
+
+p <- p1 %>%
+  insert_top(p2, height=1.2) 
+
+p
+
+
+pval_df <- div %>%
+  group_by(time) %>%
+  group_modify(~ {
+    map_dfr(comparisons, function(comp) {
+      group1 <- comp[1]
+      group2 <- comp[2]
+      data1 <- .x %>% filter(status == group1) %>% pull(shannon)
+      data2 <- .x %>% filter(status == group2) %>% pull(shannon)
+
+
+      test_res <- wilcox.test(data1, data2, alternative = "two.sided", paired = FALSE)
+
+      tibble(
+        time = unique(.x$time),
+        # clusters = unique(.x$clusters),
+        group1 = group1,
+        group2 = group2,
+        p.value = test_res$p.value,
+        statistic = test_res$statistic
+      )
+    })
+  }) %>%
+  ungroup()
+
+pval_df <- pval_df %>%
+  group_by(time) %>%
+  mutate(p.adj = p.adjust(p.value, method = "BH")) %>%
+  ungroup()
+
+pval_df
+
+
+```
+
+
+
+
+```{r}
+
+
+clonality <- qread("/home/xumeng/TCR_Dynamic/Fig/Fig2_p2/clonality_all_1025.qs")
+
+head(clonality)
+
+comp <- list(c("only", "across"))
+
+clonality <- clonality %>%
+  mutate(
+    time = case_when(
+      time == "pre" ~ "T1",
+      time == "post" ~ "T2",
+      TRUE ~ time
+    )
+  )
+
+
+
+clonality <- subset(clonality, patient != "WZF")
+
+clonality$status <- factor(clonality$status, levels = c("only", "across"))
+clonality$time <- factor(clonality$time, levels = c("T1", "T2"))
+
+clonality <- subset(clonality, time %in% c("T1", "T2"))
+clonality <- subset(clonality, status %in% c("only", "across"))
+
+clonality <- subset(clonality, clonality > 0)
+
+
+
+clonality <- clonality %>%
+  mutate(
+    type = if_else(
+      str_detect(as.character(patient), "SARS2"),
+      "Infection",
+      as.character(type)
+    ),
+    datasets = if_else(
+      str_detect(as.character(patient), "SARS2"),
+      "SARS2",
+      as.character(datasets)
+    )
+  )
+
+unique(clonality$type)
+table(clonality$type)
+
+clonality <- clonality %>%
+  mutate(type1 = case_when(
+    type == "ICB" ~ "Cancer immuno.",
+    type == "SBRt" ~ "Cancer radio.",
+    type == "Infection" ~ "Infec./Vacci.",
+    type == "TLGL" ~ "Leuk. immuno.",
+    type == "Trans" ~ "Transplantation",
+    TRUE ~ type
+  ))
+
+
+clonality$type1 <- factor(clonality$type1, levels = c("Health", "Cancer immuno.", "Cancer radio.", "Infec./Vacci.", "Leuk. immuno.", "Transplantation"))
+
+
+
+summary_dat <- clonality %>%  
+# group_by(time, status) %>%  
+group_by(type, time, status) %>%  
+# group_by(facet_group, status) %>%  
+summarise(    Mean = mean(clonality),    
+SE = sd(clonality)/sqrt(n())  )
+
+
+p1 <- ggplot(data = summary_dat, aes(x=status, y=type1, fill = Mean)) +
+geom_tile(linewidth = 0.15, alpha = 0.9) +
+geom_text(aes(label = sprintf("%.2f", Mean)), color = "black", size = 2) +
+scale_fill_gradientn(
+        ## limits = c(-1.5, 1.5),
+        # colors = c("#9fb9bc", "white", "#EF7B30")) +
+        # colors = c("#82969D", "white", "#CC312D")) +
+        # colors = c("#AABCDB", "#7698C3", "#487DB2")) +
+        # colors = c("#EFC99B", "#E8B574", "#E19D49")) +
+        colors = rev(c("#e59f24", "white","#57acaa"))) +
+        
+# facet_grid(time ~ ., scales = "fixed") +
+facet_grid( ~ time, scales = "fixed") +
+ggtitle("") +
+theme_minimal() +
+theme(
+    text = element_text(size = 6,  color = "black"),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.title.x = element_text(size = 9,  color = "black"),
+    axis.title.y = element_text(size = 9,  color = "black"),
+    axis.text.x = element_text(size = 8,  color = "black"),
+    axis.text.y = element_text(size = 9,  color = "black"),
+    #legend.title = element_text(angle = 90, hjust = 0.5),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = .2),
+    # panel.border = element_rect(color = "black", fill = NA, linewidth = 0.2),
+    strip.text.x = element_text(size = 9, colour = "black"),
+    strip.background = element_rect(color = "white", fill = "white"),
+    axis.ticks.x=element_blank(),
+    axis.ticks.y=element_blank(),
+    axis.line = element_line(linewidth = 0.1),  
+    axis.ticks = element_line(linewidth = 0.1), 
+    legend.position = "none",
+    panel.grid=element_blank())+
+        coord_fixed() #+
+        # coord_flip()
+
+p1
+
+
+summary_dat <- clonality %>%  
+group_by(time, status) %>%  
+# group_by(type, time, status) %>%  
+# group_by(facet_group, status) %>%  
+summarise(    Mean = mean(clonality),    
+SE = sd(clonality)/sqrt(n())  )
+
+
+p2 <- ggplot() +  
+geom_bar(data = clonality, aes(x = status, y = as.numeric(clonality), color = status), stat = "summary", fun = "mean", fill = "white", linewidth = 0.2, width = 0.8 ) +  
+geom_point(data = clonality, aes(x = status, y = as.numeric(clonality), color = type), position = position_jitterdodge(0.6), alpha = 0.6, size = 1, stroke = NA, shape = 19)+ 
+geom_errorbar(data = summary_dat, aes(x = status, ymin = Mean - SE, ymax = Mean + SE), width = 0.25, size = 0.1, color = "black") +
+scale_y_continuous(expand = c(0, 0), limits = c(0, 1.1)) +  
+scale_color_manual(values = c("only" = "#e59f24", "across" = "#57acaa", type_colors)) +  
+facet_wrap(~ time, ncol = 12, scales = "fixed") +
+  labs(
+    title = "",
+    x = "",
+    y = "TCR clonality",
+    # fill = "Metric",
+    color = "time status"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size=6, color = "black"),
+    axis.ticks.x = element_blank(),
+    axis.title.y=element_text(size=7, color = "black"),
+    axis.title.x=element_blank(),
+    axis.line = element_line(linewidth = 0.2),  
+    axis.ticks = element_line(linewidth = 0.2), 
+    panel.grid=element_blank(),
+    strip.background = element_rect(color = "white", fill = "white"),
+    strip.text.x = element_text(size = 7, colour = "black"),
+    legend.position = "none",
+    legend.text = element_text(size=6),
+    legend.title = element_text(size=7),
+  ) +
+  geom_signif(data = clonality, aes(x = status, y = as.numeric(clonality)),
+    comparisons = list(c("only", "across")), step_increase = 0.08,
+    map_signif_level = T, test = "wilcox.test", test.args=list(alternative = "two.side", paired = F),
+    tip_length = c(0), color = "black", size = 0.2, textsize = 3
+  )
+
+p2
+
+
+p <- p1 %>%
+  insert_top(p2, height=1.2) 
+
+
+p
+
+
+pval_df <- clonality %>%
+  group_by(time) %>%
+  group_modify(~ {
+    map_dfr(comparisons, function(comp) {
+      group1 <- comp[1]
+      group2 <- comp[2]
+      data1 <- .x %>% filter(status == group1) %>% pull(clonality)
+      data2 <- .x %>% filter(status == group2) %>% pull(clonality)
+
+      test_res <- wilcox.test(data1, data2, alternative = "two.sided", paired = FALSE)
+
+      tibble(
+        time = unique(.x$time),
+        # clusters = unique(.x$clusters),
+        group1 = group1,
+        group2 = group2,
+        p.value = test_res$p.value,
+        statistic = test_res$statistic
+      )
+    })
+  }) %>%
+  ungroup()
+
+pval_df <- pval_df %>%
+  group_by(time) %>%
+  mutate(p.adj = p.adjust(p.value, method = "BH")) %>%
+  ungroup()
+
+pval_df
+
+
+```
+

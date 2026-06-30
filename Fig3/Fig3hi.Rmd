@@ -1,0 +1,446 @@
+
+```{r}
+
+rm(list = ls())
+
+library(tidyverse)
+library(reshape2)
+library(purrr)
+library(ggsignif)
+library(patchwork)
+library(qs)
+
+'%ni%'=Negate('%in%')
+
+setwd("/home/xumeng/TCR_Dynamic/code4fithub/Fig3/")
+
+```
+
+
+```{r}
+
+rep_all <- qread("/home/xumeng/TCR_Dynamic/randomicity/all_rep/rep_all.qs")
+
+```
+
+
+```{r}
+
+head(rep_all)
+
+
+data4dis_wide <- rep_all %>%
+  pivot_wider(
+    names_from = replicate,       
+    values_from = count,  
+    values_fill = list(count = 0),  
+    values_fn = sum   
+  )
+
+
+head(data4dis_wide)
+
+data4dis_wide <- data4dis_wide %>%
+  mutate(
+    status = case_when(
+      Rep1 > 0 & Rep2 == 0 ~ "only",
+      Rep1 == 0 & Rep2 > 0 ~ "only",
+      Rep1 > 0 & Rep2 > 0 ~ "across",
+    )
+  )
+
+
+
+```
+
+
+```{r}
+head(data4dis_wide)
+
+
+data4dis_long <- data4dis_wide %>%
+  gather(key = "time", value = "count", Rep1, Rep2)
+
+
+head(data4dis_long)
+
+data4dis_long_1 <- subset(data4dis_long, count > 0)
+
+head(data4dis_long_1)
+
+data4dis_long_1$time_status <- paste0(data4dis_long_1$time, "@", data4dis_long_1$status)
+
+data4dis_long_1$sampleid <- paste0(data4dis_long_1$patient, "@", data4dis_long_1$time)
+
+pat_status <- table(data4dis_long_1$patient, data4dis_long_1$time_status) %>% as.data.frame()
+
+head(pat_status)
+
+group = "time_status"
+
+colnames(pat_status) <- c("patient", group, "count")
+
+
+pat_status <- pat_status %>%
+  mutate(time = str_split(time_status, "@", simplify = TRUE)[, 1])
+
+pat_status <- pat_status %>%
+  mutate(status = str_split(time_status, "@", simplify = TRUE)[, 2])
+
+pat_status$sampleid <- paste0(pat_status$patient, "@", pat_status$time)
+
+
+pat_status <- pat_status %>%
+  group_by(sampleid) %>%
+  mutate(proportion = count / sum(count))
+
+colnames(pat_status)[2] <- "group"
+
+head(pat_status)
+
+
+pat_status$time <- factor(pat_status$time, levels = c("Rep1", "Rep2"))
+pat_status$status <- factor(pat_status$status, levels = c("only", "across"))
+
+pat_status <- pat_status %>%
+  mutate(tissue = str_split(patient, "\\.", simplify = TRUE)[, 3])
+
+getwd()
+
+qsave(pat_status, "pat_status.qs")
+
+pat_status <- qread("/home/xumeng/TCR_Dynamic/code4fithub/Fig3/pat_status.qs")
+
+head(data4dis_long_1[, c("cdr3b", "count", "sampleid")])
+
+head(data4dis_long_1)
+
+
+data4dis_long_1 <- data4dis_long_1 %>%
+  group_by(sampleid) %>%
+  mutate(expansion = ifelse(count >= 1.5*median(count), "ex", "nex")) %>%
+  ungroup()
+
+
+data4dis_long_1 <- data4dis_long_1 %>%
+  mutate(tissue = str_split(patient, "\\.", simplify = TRUE)[, 3])
+
+data4dis_long_1$patient_time_status <- paste0(data4dis_long_1$patient, "#", data4dis_long_1$time, "#", data4dis_long_1$status)
+
+ex_data <- data4dis_long_1 %>%
+  group_by(patient_time_status, expansion, tissue) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(patient_time_status) %>%
+  mutate(proportion = count / sum(count)) %>%
+  ungroup()
+
+head(ex_data)
+
+ex_data <- ex_data %>%
+  mutate(patient = paste0(str_split(patient_time_status, "#", simplify = TRUE)[, 1]))
+
+ex_data <- ex_data %>%
+  mutate(time = str_split(patient_time_status, "#", simplify = TRUE)[, 2])
+
+ex_data <- ex_data %>%
+  mutate(status = str_split(patient_time_status, "#", simplify = TRUE)[,3])
+
+
+ex_data$time <- factor(ex_data$time, levels = c("Rep1", "Rep2"))
+ex_data$status <- factor(ex_data$status, levels = c("only", "across"))
+
+
+qsave(ex_data, "ex_data_1.5median.qs")
+
+
+```
+
+
+
+```{r}
+
+
+p1 <- ggplot(pat_status, aes(x = status, y = as.numeric(proportion), color = status)) +
+      geom_point(aes(color = status), position = position_jitterdodge(0.9), size = 0.8, alpha = 0.7, stroke = NA, shape = 19)+
+#   scale_size(range = c(0.2, 3), name = "T2") +
+      stat_summary(fun.y = median, geom = 'crossbar', width = 0.3, size = 0.1, color = 'black') +
+  stat_summary(fun.data = function(x) median_hilow(x, 0.5), geom = 'errorbar', width = 0.2, size = 0.15, color = 'black') +
+scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+  scale_y_continuous(limits = c(0, 1.05)) +
+      ggtitle("") +
+      labs(
+        x = NULL, y = "TCR Ratio"
+      ) +
+      theme_classic() +
+      facet_wrap(tissue ~ time, scales = "fixed", ncol = 4) +
+      theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 8, color = "black"),
+        axis.title.y = element_text(size = 9),
+        axis.line = element_line(linewidth = 0.2),
+        axis.ticks = element_line(linewidth = 0.2),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.spacing = unit(0.4, "lines"),
+        strip.background = element_rect(fill = "white", color = "white"),
+        strip.text = element_text(size = 7, face = "bold", colour = "black"),
+        legend.position = "bottom",
+        legend.text = element_text(size = 6),
+        legend.title = element_text(size = 7)
+      ) +
+      geom_signif(
+        comparisons = list(c("only","across")), step_increase = 0.1,
+        map_signif_level = F, test = wilcox.test, test.args = list(alternative = "two.side", paired = T),
+        tip_length = 0, color = "black", size = 0.2, textsize = 2
+      )
+
+p1
+
+p2 <- ggplot(subset(pat_status, status == "only"), aes(x = time, y = as.numeric(proportion), color = time)) +
+      geom_point(aes(color = time), position = position_jitterdodge(0.9), size = 0.8, alpha = 0.7, stroke = NA, shape = 19)+
+#   scale_size(range = c(0.2, 3), name = "T2") +
+      stat_summary(fun.y = median, geom = 'crossbar', width = 0.3, size = 0.1, color = 'black') +
+  stat_summary(fun.data = function(x) median_hilow(x, 0.5), geom = 'errorbar', width = 0.2, size = 0.15, color = 'black') +
+  scale_color_manual(values = c("#34689A", "#B2B2B2")) +
+#   scale_y_continuous(limits = c(min(status_ratio_all_long$Ratio), 1.05)) +
+      ggtitle("") +
+      labs(
+        x = NULL, y = "TCR Ratio"
+      ) +
+      theme_classic() +
+      facet_wrap( ~ tissue, scales = "fixed", ncol = 2) +
+      theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 8, color = "black"),
+        axis.title.y = element_text(size = 9),
+        axis.line = element_line(linewidth = 0.2),
+        axis.ticks = element_line(linewidth = 0.2),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.spacing = unit(0.4, "lines"),
+        strip.background = element_rect(fill = "white", color = "white"),
+        strip.text = element_text(size = 7, face = "bold", colour = "black"),
+        legend.position = "bottom",
+        legend.text = element_text(size = 6),
+        legend.title = element_text(size = 7)
+      ) +
+      geom_signif(
+        comparisons = list(c("Rep1","Rep2")), step_increase = 0.1,
+        map_signif_level = F, test = wilcox.test, test.args = list(alternative = "two.side", paired = T),
+        tip_length = 0, color = "black", size = 0.2, textsize = 2
+      )
+
+p2
+
+
+
+p3 <- ggplot(subset(ex_data, expansion == "ex" ), aes(x = status, y = as.numeric(proportion), color = status)) +
+      geom_point(aes(color = status), position = position_jitterdodge(0.9), size = 0.8, alpha = 0.7, stroke = NA, shape = 19)+
+#   scale_size(range = c(0.2, 3), name = "T2") +
+      stat_summary(fun.y = median, geom = 'crossbar', width = 0.3, size = 0.1, color = 'black') +
+  stat_summary(fun.data = function(x) median_hilow(x, 0.5), geom = 'errorbar', width = 0.2, size = 0.15, color = 'black') +
+scale_color_manual(values = c("#e59f24", "#57acaa")) +  
+  scale_y_continuous(limits = c(0, 1.05)) +
+      ggtitle("") +
+      labs(
+        x = NULL, y = "TCR Ratio"
+      ) +
+      theme_classic() +
+      facet_wrap(tissue ~ time, scales = "fixed", ncol = 4) +
+      theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 8, color = "black"),
+        axis.title.y = element_text(size = 9),
+        axis.line = element_line(linewidth = 0.2),
+        axis.ticks = element_line(linewidth = 0.2),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.spacing = unit(0.4, "lines"),
+        strip.background = element_rect(fill = "white", color = "white"),
+        strip.text = element_text(size = 7, face = "bold", colour = "black"),
+        legend.position = "bottom",
+        legend.text = element_text(size = 6),
+        legend.title = element_text(size = 7)
+      ) +
+      geom_signif(
+        comparisons = list(c("only","across")), step_increase = 0.1,
+        map_signif_level = F, test = wilcox.test, test.args = list(alternative = "two.side", paired = T),
+        tip_length = 0, color = "black", size = 0.2, textsize = 2
+      )
+
+p3
+
+
+```
+
+
+
+```{r}
+
+status_ratio_all_1 <- qread("/home/xumeng/TCR_Dynamic/randomicity/all_rep/status_ratio_all_HC4.qs")
+
+status_ratio_all_1$datasets <- "HC4"
+
+status_ratio_all_2 <- qread("/home/xumeng/TCR_Dynamic/randomicity/all_rep/status_ratio_all_SCCB.qs")
+
+status_ratio_all_2$datasets <- "SCCB"
+
+status_ratio_all_3 <- qread("/home/xumeng/TCR_Dynamic/randomicity/all_rep/status_ratio_all_Nghiem.qs")
+
+status_ratio_all_3$datasets <- "Nghiem"
+
+status_ratio_all <- bind_rows(status_ratio_all_1, status_ratio_all_2, status_ratio_all_3)
+
+head(status_ratio_all)
+
+table(status_ratio_all$datasets)
+
+
+status_ratio_all_test <- status_ratio_all[, c("patient", "test", "datasets", "po_TCR_ratio", "pepr_TCR_ratio", "pepo_TCR_ratio", "eg_TCR_ratio")]
+
+
+head(status_ratio_all_test)
+
+
+status_ratio_all_long <- status_ratio_all_test %>%
+  pivot_longer(
+    cols = c(po_TCR_ratio, pepr_TCR_ratio, pepo_TCR_ratio, eg_TCR_ratio),
+    names_to = "type",
+    values_to = "ratio"
+  )
+
+head(status_ratio_all_long)
+
+
+status_ratio_all_long <- status_ratio_all_long %>%
+  mutate(
+    replicate = case_when(
+      type %in% c("po_TCR_ratio", "pepr_TCR_ratio") ~ "Rep1",
+      type %in% c("pepo_TCR_ratio", "eg_TCR_ratio") ~ "Rep2",
+    )
+  )
+
+status_ratio_all_long <- status_ratio_all_long %>%
+  mutate(
+    status = case_when(
+      type %in% c("po_TCR_ratio", "eg_TCR_ratio") ~ "only",
+      type %in% c("pepo_TCR_ratio", "pepr_TCR_ratio") ~ "across",
+    )
+  )
+
+head(status_ratio_all_long)
+dim(status_ratio_all_long)
+
+status_ratio_all_long$status <- factor(status_ratio_all_long$status, levels = c("only", "across"))
+
+status_ratio_all_long$datasets <- factor(status_ratio_all_long$datasets, levels = c("HC4", "SCCB", "Nghiem"))
+
+p4 <- ggplot(status_ratio_all_long, aes(x = status, y = as.numeric(ratio), fill = status)) +
+      geom_boxplot(alpha = 0.9, outlier.shape = NA,  width = 0.8, linewidth = 0.1) +
+scale_fill_manual(values = c("#e59f24", "#57acaa")) +  
+  scale_y_continuous(limits = c(0, 1.05)) +
+      ggtitle("") +
+      labs(
+        x = NULL, y = "TCR Ratio"
+      ) +
+      theme_classic() +
+      facet_wrap(datasets ~ replicate, scales = "fixed", ncol = 8) +
+      theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 6, color = "black"),
+        axis.title.y = element_text(size = 7),
+        axis.line = element_line(linewidth = 0.2),
+        axis.ticks = element_line(linewidth = 0.2),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.spacing = unit(0.4, "lines"),
+        strip.background = element_rect(fill = "white", color = "white"),
+        strip.text = element_text(size = 7, face = "bold", colour = "black"),
+        legend.position = "bottom",
+        legend.text = element_text(size = 6),
+        legend.title = element_text(size = 7)
+      ) +
+      geom_signif(
+        comparisons = list(c("only","across")), step_increase = 0.1,
+        map_signif_level = F, test = wilcox.test, test.args = list(alternative = "two.side", paired = T),
+        tip_length = 0, color = "black", size = 0.2, textsize = 2
+      )
+
+
+p4
+
+
+
+head(status_ratio_all_long)
+
+status_ratio_all_long$sampleid <- paste0(status_ratio_all_long$patient, ".", status_ratio_all_long$test)
+
+
+pval_df <- status_ratio_all_long %>%
+  mutate(ratio = as.numeric(ratio)) %>%
+  group_by(datasets, replicate) %>%
+  group_modify(~{
+    dat <- .x %>%
+      select(sampleid, status, ratio) %>%   
+      pivot_wider(names_from = status, values_from = ratio)
+
+    # 只保留配对完整的样本
+    dat2 <- dat %>% filter(!is.na(only) & !is.na(across))
+
+    if (nrow(dat2) < 2) {
+      return(tibble(p = NA_real_))
+    }
+
+    wt <- wilcox.test(dat2$only, dat2$across, paired = TRUE, alternative = "two.sided")
+    tibble(p = wt$p.value)
+  }) %>%
+  ungroup() %>%
+  mutate(
+    p_label = case_when(
+      is.na(p) ~ "NA",
+      p < 0.001 ~ "***",
+      p < 0.01 ~ "**",
+      p < 0.05 ~ "*",
+      TRUE ~ "ns"
+    )
+  )
+
+
+pval_df <- status_ratio_all_long %>%
+  mutate(ratio = as.numeric(ratio)) %>%
+  group_by(datasets, replicate) %>%
+  group_modify(~{
+    dat <- .x %>%
+      select(sampleid, status, ratio) %>%   
+      pivot_wider(names_from = status, values_from = ratio)
+
+    dat2 <- dat %>% filter(!is.na(only) & !is.na(across))
+
+    if (nrow(dat2) < 2) {
+      return(tibble(p = NA_real_))
+    }
+
+    wt <- wilcox.test(dat2$only, dat2$across,
+                      paired = TRUE,
+                      alternative = "two.sided",
+                      exact = FALSE)
+
+    tibble(p = wt$p.value)
+  }) %>%
+  ungroup() %>%
+  mutate(
+    p_display = format.pval(p, digits = 3, eps = 1e-300),
+    p_label = case_when(
+      is.na(p) ~ "NA",
+      p < 0.001 ~ "***",
+      p < 0.01 ~ "**",
+      p < 0.05 ~ "*",
+      TRUE ~ "ns"
+    )
+  )
+
+
+pval_df
+
+
+```
