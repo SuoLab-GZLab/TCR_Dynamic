@@ -25,13 +25,13 @@ The analytical pipelines are implemented in both R and Python.
 * `Seurat` (Single-cell RNA/TCR integration and visualization)
 * `ggplot2` (Data visualization)
 * `vagen` (TCR diversity and Chao2 asymptotic estimation)
-* `GPTCelltype` (Distribution fitting for TCR clonotypes)
-* `forestmodel` (Distribution fitting for TCR clonotypes)
+* `GPTCelltype` (Automated T cell subset annotation leveraging large language models)
+* `forestmodel` (Forest plot visualization for statistical modeling results and differential comparisons)
 
 * Other standard bioinformatics utilities.
 
 **Python Dependencies:**
-* `NoisET` (Distribution fitting for TCR clonotypes)
+* `NoisET` (NOIse sampling learning & Expansion detection of T-cell receptors using Bayesian inference.)
 
 
 
